@@ -1,5 +1,5 @@
 ##fileformat=VCFv4.2
-##source=RecombMix
+##source=RecombMix_v0.3
 ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	TSI	FIN	GBR
 18	10733	.	A	C	.	PASS	.	GT	0/0	0/0	0/0

@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: Apr 17, 2023
+//  * Modified on: May 18, 2023
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -66,6 +66,7 @@ int main(int argc, char *argv[]){
         double weight = 1.5; //recombination rate weight in cost function
 
         //other variables
+        string version_number = "0.3"; //program version number
         int number_of_populations = 0; //number of ways of admixture population
         int number_of_site_values = 2; //biallelic (0 or 1)
         char population_delimiter = ','; //text format
@@ -97,10 +98,10 @@ int main(int argc, char *argv[]){
         string input_map_path_and_file_name;
         string input_population_path_and_file_name;
         string output_inference_individuals_path_and_file_name;
-        string output_fit_map_path_and_file_name;
-        string output_time_path_and_file_name;
         string output_compact_panel_path_and_file_name;
+        string output_compact_panel_population_label_path_and_file_name;
         bool output_compact_panel = false;
+        bool has_queries = false;
 
         //get command line arguments
         string program_name = argv[0];
@@ -127,6 +128,7 @@ int main(int argc, char *argv[]){
             else if ((argument == "-q") || (argument == "--query")){
                 if (i + 1 < argc){
                     input_query_panel_path_and_file_name = argv[i + 1];
+                    has_queries = true;
                     program_arguments += " q=" + input_query_panel_path_and_file_name;
                     i++;
                 }
@@ -212,6 +214,7 @@ int main(int argc, char *argv[]){
         }
         output_inference_individuals_path_and_file_name = output_directory_path + "/admix_inferred_ancestral_values_local.txt";
         output_compact_panel_path_and_file_name = output_directory_path + "/compact_reference_panel.vcf";
+        output_compact_panel_population_label_path_and_file_name = output_directory_path + "/compact_reference_panel_population_label.txt";
 
         //output variables
         cout << "program name: " << program_name << "\nprogram arguments: " << program_arguments << endl;
@@ -220,6 +223,7 @@ int main(int argc, char *argv[]){
         cout << "local ancestray inference: " << output_inference_individuals_path_and_file_name << endl;
         if (output_compact_panel){
             cout << "compact reference panel: " << output_compact_panel_path_and_file_name << endl;
+            cout << "compact reference panel population label: " << output_compact_panel_population_label_path_and_file_name << endl;
         }
 
         //set vcf file header index; vcf file should have: #CHROM POS ID REF ALT QUAL FILTER INFO FORMAT (9 fields) before the first individual id
@@ -401,7 +405,7 @@ int main(int argc, char *argv[]){
             }
             if (output_file_data.is_open()){
                 output_file_data << "##fileformat=VCFv4.2" << endl;
-                output_file_data << "##source=RecombMix" << endl;
+                output_file_data << "##source=RecombMix_v" << version_number << endl;
                 output_file_data << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;
                 output_file_data << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
                 for (int i = 0; i < origin_to_labels.size(); i++){
@@ -445,6 +449,23 @@ int main(int argc, char *argv[]){
                 }
             }
             output_file_data.close();
+
+            output_file_data.open(output_compact_panel_population_label_path_and_file_name, ios::trunc);
+            if (!output_file_data){
+                cout << "cannot create or open file " + output_compact_panel_population_label_path_and_file_name << endl;
+                exit(1);
+            }
+            if (output_file_data.is_open()){
+                for (int i = 0; i < origin_to_labels.size(); i++){
+                    output_file_data << origin_to_labels[i] << "," << origin_to_labels[i] << endl;
+                }
+            }
+            output_file_data.close();
+        }
+
+        if (!has_queries){
+            cout << "end program" << endl;
+            return 0;
         }
 
         cout << "start read query data" << endl;
@@ -662,6 +683,7 @@ int main(int argc, char *argv[]){
         cout << "end verify data" << endl;
 
         if (!is_data_satisfied){
+            cout << "end program" << endl;
             return 0;
         }
 
