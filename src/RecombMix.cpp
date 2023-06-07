@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: May 18, 2023
+//  * Modified on: Jun 02, 2023
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -21,6 +21,8 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime>
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/gzip.hpp>
 using namespace std;
 
 //remove spaces from string
@@ -66,10 +68,10 @@ int main(int argc, char *argv[]){
         double weight = 1.5; //recombination rate weight in cost function
 
         //other variables
-        string version_number = "0.3"; //program version number
+        string version_number = "0.4"; //program version number
         int number_of_populations = 0; //number of ways of admixture population
         int number_of_site_values = 2; //biallelic (0 or 1)
-        char population_delimiter = ','; //text format
+        char population_delimiter = '\t'; //text format
         char vcf_delimiter = '\t'; //VCF format
         char map_delimiter = '\t'; //HapMap format
 
@@ -213,7 +215,7 @@ int main(int argc, char *argv[]){
             output_directory_path = output_directory_path.substr(0, output_directory_path.size() - 1);
         }
         output_inference_individuals_path_and_file_name = output_directory_path + "/admix_inferred_ancestral_values_local.txt";
-        output_compact_panel_path_and_file_name = output_directory_path + "/compact_reference_panel.vcf";
+        output_compact_panel_path_and_file_name = output_directory_path + "/compact_reference_panel.vcf.gz";
         output_compact_panel_population_label_path_and_file_name = output_directory_path + "/compact_reference_panel_population_label.txt";
 
         //output variables
@@ -241,7 +243,6 @@ int main(int argc, char *argv[]){
         //variables for input and output
         ifstream input_file_data;
         ofstream output_file_data;
-        ofstream output_file_time;
 
         cout << "start read reference ancestry data" << endl;
 
@@ -251,7 +252,7 @@ int main(int argc, char *argv[]){
         int label_id = 0;
         set<string> population_labels;
 
-        //read sample population data from file
+        //read sample population label from file
         input_file_data.open(input_population_path_and_file_name);
         if (!input_file_data){
             cout << "cannot open file " + input_population_path_and_file_name << endl;
@@ -261,21 +262,26 @@ int main(int argc, char *argv[]){
             int line_number = 0;
             string line_from_file;
             while (getline(input_file_data, line_from_file)){
-                vector<string> tokens = split_string(line_from_file, population_delimiter);
-                if (tokens.size() >= 2){
-                    //population format: sample_id,population_label
-                    string sample_id = remove_spaces(tokens[0]);
-                    string population_label = remove_spaces(tokens[1]);
-                    if (origin_to_ids.count(population_label) <= 0){
-                        origin_to_ids[population_label] = label_id;
-                        origin_to_labels[label_id] = population_label;
-                        label_id++;
-                    }
-                    sample_populations[sample_id] = origin_to_ids[population_label];
-                    sample_index_populations[line_number] = origin_to_ids[population_label];
-                    population_labels.insert(population_label);
+                if (line_from_file.substr(0, 1).compare("#") == 0){
+                    //do nothing; skip the header or comment line
                 }
-                line_number++;
+                else {
+                    vector<string> tokens = split_string(line_from_file, population_delimiter);
+                    if (tokens.size() >= 2){
+                        //population format: sample_id \t population_label
+                        string sample_id = remove_spaces(tokens[0]);
+                        string population_label = remove_spaces(tokens[1]);
+                        if (origin_to_ids.count(population_label) <= 0){
+                            origin_to_ids[population_label] = label_id;
+                            origin_to_labels[label_id] = population_label;
+                            label_id++;
+                        }
+                        sample_populations[sample_id] = origin_to_ids[population_label];
+                        sample_index_populations[line_number] = origin_to_ids[population_label];
+                        population_labels.insert(population_label);
+                    }
+                    line_number++;
+                }
             }
             input_file_data.close();
         }
@@ -287,12 +293,22 @@ int main(int argc, char *argv[]){
         cout << "start read panel data" << endl;
 
         //read panel data from file
-        input_file_data.open(input_reference_panel_path_and_file_name);
-        if (!input_file_data){
+        ifstream input_panel_file;
+        boost::iostreams::filtering_streambuf<boost::iostreams::input> stream_in_buffer_panel;
+        if (input_reference_panel_path_and_file_name.substr(input_reference_panel_path_and_file_name.size() - 2, 2).compare("gz") == 0){
+            input_panel_file.open(input_reference_panel_path_and_file_name, ios_base::in | ios_base::binary);
+            stream_in_buffer_panel.push(boost::iostreams::gzip_decompressor());
+        }
+        else {
+            input_panel_file.open(input_reference_panel_path_and_file_name, ios_base::in);
+        }
+        if (!input_panel_file){
             cout << "cannot open file " + input_reference_panel_path_and_file_name << endl;
             exit(1);
         }
-        if (input_file_data.is_open()){
+        stream_in_buffer_panel.push(input_panel_file);
+        istream input_vcf_file_data(&stream_in_buffer_panel);
+        if (input_panel_file.is_open()){
             int line_number = 0;
             bool end_of_file = false;
             string line_from_file;
@@ -300,8 +316,8 @@ int main(int argc, char *argv[]){
             while (!end_of_file){
                 line_from_file = line_from_file_next;
                 if (!end_of_file){
-                    getline(input_file_data, line_from_file_next);
-                    if (input_file_data.eof()){
+                    getline(input_vcf_file_data, line_from_file_next);
+                    if (input_vcf_file_data.eof()){
                         end_of_file = true;
                     }
                 }
@@ -337,7 +353,7 @@ int main(int argc, char *argv[]){
                             chromosome_id = tokens[i];
                             has_chromosome_id = true;
                         }
-                        //get panel individual first and second haplotype site values and minor allele frequency of the site
+                        //get panel individual first and second haplotype site values and allele frequency of the site
                         if (tokens[i].substr(1, 1).compare("|") == 0 || tokens[i].substr(1, 1).compare("/") == 0){ //phased or unphased
                             int site_of_first_haplotype = stoi(tokens[i].substr(0, 1));
                             int site_of_second_haplotype = stoi(tokens[i].substr(2, 1));
@@ -391,30 +407,34 @@ int main(int argc, char *argv[]){
                 }
                 line_number++;
             }
-            input_file_data.close();
+            input_panel_file.close();
         }
-
+        
         cout << "end read panel data" << endl;
 
         //output compact reference panel
         if (output_compact_panel){
-            output_file_data.open(output_compact_panel_path_and_file_name, ios::trunc);
-            if (!output_file_data){
+            ofstream output_panel_file(output_compact_panel_path_and_file_name, ios_base::out | ios_base::binary);
+            if (!output_panel_file){
                 cout << "cannot create or open file " + output_compact_panel_path_and_file_name << endl;
                 exit(1);
             }
-            if (output_file_data.is_open()){
-                output_file_data << "##fileformat=VCFv4.2" << endl;
-                output_file_data << "##source=RecombMix_v" << version_number << endl;
-                output_file_data << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;
-                output_file_data << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
+            boost::iostreams::filtering_streambuf<boost::iostreams::output> stream_out_buffer;
+            stream_out_buffer.push(boost::iostreams::gzip_compressor());
+            stream_out_buffer.push(output_panel_file);
+            ostream output_vcf_file_data(&stream_out_buffer);
+            if (output_panel_file.is_open()){
+                output_vcf_file_data << "##fileformat=VCFv4.2" << endl;
+                output_vcf_file_data << "##source=RecombMix_v" << version_number << endl;
+                output_vcf_file_data << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;
+                output_vcf_file_data << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
                 for (int i = 0; i < origin_to_labels.size(); i++){
-                    output_file_data << origin_to_labels[i];
+                    output_vcf_file_data << origin_to_labels[i];
                     if (i < origin_to_labels.size() - 1){
-                        output_file_data << "\t";
+                        output_vcf_file_data << "\t";
                     }
                     else {
-                        output_file_data << endl;
+                        output_vcf_file_data << endl;
                     }
                 }
             }
@@ -435,20 +455,21 @@ int main(int argc, char *argv[]){
                     }
                     individuals_site_value[key_population_label_id] = site_value_str;
                 }
-                if (output_file_data.is_open()){
-                    output_file_data << chromosome_id << "\t" << panel_physical_positions[i] << "\t.\tA\tC\t.\tPASS\t.\tGT\t";
+                if (output_panel_file.is_open()){
+                    output_vcf_file_data << chromosome_id << "\t" << panel_physical_positions[i] << "\t.\tA\tC\t.\tPASS\t.\tGT\t";
                     for (int j = 0; j < individuals_site_value.size(); j++){
-                        output_file_data << individuals_site_value[j];
+                        output_vcf_file_data << individuals_site_value[j];
                         if (j < individuals_site_value.size() - 1){
-                            output_file_data << "\t";
+                            output_vcf_file_data << "\t";
                         }
                         else {
-                            output_file_data << endl;
+                            output_vcf_file_data << endl;
                         }
                     }
                 }
             }
-            output_file_data.close();
+            boost::iostreams::close(stream_out_buffer);
+            output_panel_file.close();
 
             output_file_data.open(output_compact_panel_population_label_path_and_file_name, ios::trunc);
             if (!output_file_data){
@@ -456,8 +477,9 @@ int main(int argc, char *argv[]){
                 exit(1);
             }
             if (output_file_data.is_open()){
+                output_file_data << "#Sample_ID\tPopulation_Label" << endl;
                 for (int i = 0; i < origin_to_labels.size(); i++){
-                    output_file_data << origin_to_labels[i] << "," << origin_to_labels[i] << endl;
+                    output_file_data << origin_to_labels[i] << "\t" << origin_to_labels[i] << endl;
                 }
             }
             output_file_data.close();
@@ -474,12 +496,22 @@ int main(int argc, char *argv[]){
         int physical_position_panel_current = 0;
         vector<int> panel_physical_position_index_filtered;
         vector<int> query_physical_position_index_filtered;
-        input_file_data.open(input_query_panel_path_and_file_name);
-        if (!input_file_data){
+        ifstream input_query_file;
+        boost::iostreams::filtering_streambuf<boost::iostreams::input> stream_in_buffer_query;
+        if (input_query_panel_path_and_file_name.substr(input_query_panel_path_and_file_name.size() - 2, 2).compare("gz") == 0){
+            input_query_file.open(input_query_panel_path_and_file_name, ios_base::in | ios_base::binary);
+            stream_in_buffer_query.push(boost::iostreams::gzip_decompressor());
+        }
+        else {
+            input_query_file.open(input_query_panel_path_and_file_name, ios_base::in);
+        }
+        if (!input_query_file){
             cout << "cannot open file " + input_query_panel_path_and_file_name << endl;
             exit(1);
         }
-        if (input_file_data.is_open()){
+        stream_in_buffer_query.push(input_query_file);
+        istream input_query_file_data(&stream_in_buffer_query);
+        if (input_query_file.is_open()){
             int line_number = 0;
             bool end_of_file = false;
             string line_from_file;
@@ -487,8 +519,8 @@ int main(int argc, char *argv[]){
             while (!end_of_file){
                 line_from_file = line_from_file_next;
                 if (!end_of_file){
-                    getline(input_file_data, line_from_file_next);
-                    if (input_file_data.eof()){
+                    getline(input_query_file_data, line_from_file_next);
+                    if (input_query_file_data.eof()){
                         end_of_file = true;
                     }
                 }
@@ -552,7 +584,7 @@ int main(int argc, char *argv[]){
                 }
                 line_number++;
             }
-            input_file_data.close();
+            input_query_file.close();
         }
 
         cout << "end read query data" << endl;
@@ -667,6 +699,8 @@ int main(int argc, char *argv[]){
         cout << "start verify data" << endl;
 
         bool is_data_satisfied = true;
+
+        //verify parameters
         if (panel_physical_position_index_filtered.size() <= 0){
             is_data_satisfied = false;
             cout << "reference panel has no intersecting markers with query" << endl;
@@ -699,9 +733,9 @@ int main(int argc, char *argv[]){
         int q = number_of_query_haplotypes;
 
         //initialize graph
-        vector<vector<double>> scores; //stores score of each site or segment
-        vector<unordered_map<int, tuple<double, int>>> scores_min; //stores minimum scores and paths of each population appearing on the site or segment
-        vector<vector<int>> paths; //store optimal path of each site or segment (haplotype index of the previous site)
+        vector<vector<double>> scores; //stores score of each site
+        vector<unordered_map<int, tuple<double, int>>> scores_min; //stores minimum scores and paths of each population appearing on the site
+        vector<vector<int>> paths; //store optimal path of each site (haplotype index of the previous site)
 
         double score_final = numeric_limits<double>::max();
         int last_site_haplotype_index = -1;
@@ -709,6 +743,25 @@ int main(int argc, char *argv[]){
 
         cout << "start run queries" << endl;
 
+        output_file_data.open(output_inference_individuals_path_and_file_name, ios::app);
+        if (!output_file_data){
+            cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << endl;
+            exit(1);
+        }
+        if (output_file_data.is_open()){
+            output_file_data << "#Population label and ID: ";
+            for (int i = 0; i < origin_to_labels.size(); i++){
+                output_file_data << origin_to_labels[i] << "=" << i;
+                if (i < origin_to_labels.size() - 1){
+                    output_file_data << "\t";
+                }
+                else {
+                    output_file_data << endl;
+                }
+            }
+        }
+        output_file_data.close();
+        
         for (int query_haplotype_index = 0; query_haplotype_index < q; query_haplotype_index++){
             //get query haplotype
             vector<bool> query_site;
@@ -731,7 +784,6 @@ int main(int argc, char *argv[]){
                     int path_index = -1;
                     double score_l = 0.0;
                     int haplotype_id_of_site = -1;
-
                     //check site having allele value zero and one
                     if (value_allele_frequency_zero > 0.0){
                         int panel_site_value = 0;
@@ -872,7 +924,7 @@ int main(int argc, char *argv[]){
             //store the last segment inferred result
             inferred_segments.push_back(tuple<int, int, int>(start_position_prev, query_physical_positions[number_of_query_sites - 1], population_label_prev));
 
-            //write inference result
+            //output inference result
             string query_individual_id = query_individual_ids[query_haplotype_index / 2];
             output_file_data.open(output_inference_individuals_path_and_file_name, ios::app);
             if (!output_file_data){

@@ -1,3 +1,4 @@
-AFR,AFR
-EUR,EUR
-EAS,EAS
+#Sample_ID	Population_Label
+AFR	AFR
+EUR	EUR
+EAS	EAS
