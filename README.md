@@ -3,7 +3,7 @@ Author: Yuan Wei (yuan.wei@knights.ucf.edu)
 
 ## Run Recomb-Mix Program
 
-Recomb-Mix program is compiled using GCC 9.1.0 with -Os optimization flag under a 64-bit Unix based operating system:
+Recomb-Mix program uses C++ Boost Libraries (https://www.boost.org/), and is compiled using GCC 9.1.0 with -Os optimization flag under a 64-bit Unix based operating system:
 ```
 g++ -std=c++17 RecombMix.cpp -l boost_iostreams -o RecombMix_v0.4 -Os
 ```
