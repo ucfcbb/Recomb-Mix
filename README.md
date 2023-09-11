@@ -1,5 +1,5 @@
 # Recomb-Mix
-Author: Yuan Wei (yuan.wei@knights.ucf.edu)
+Author: Yuan Wei (yuan.wei@ucf.edu)
 
 ## Run Recomb-Mix Program
 
