@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: Jun 02, 2023
+//  * Modified on: Nov 30, 2023
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -68,7 +68,7 @@ int main(int argc, char *argv[]){
         double weight = 1.5; //recombination rate weight in cost function
 
         //other variables
-        string version_number = "0.4"; //program version number
+        string version_number = "0.5"; //program version number
         int number_of_populations = 0; //number of ways of admixture population
         int number_of_site_values = 2; //biallelic (0 or 1)
         char population_delimiter = '\t'; //text format
@@ -456,7 +456,7 @@ int main(int argc, char *argv[]){
                     individuals_site_value[key_population_label_id] = site_value_str;
                 }
                 if (output_panel_file.is_open()){
-                    output_vcf_file_data << chromosome_id << "\t" << panel_physical_positions[i] << "\t.\tA\tC\t.\tPASS\t.\tGT\t";
+                    output_vcf_file_data << chromosome_id << "\t" << panel_physical_positions[i] << "\t.\t.\t.\t.\tPASS\t.\tGT\t";
                     for (int j = 0; j < individuals_site_value.size(); j++){
                         output_vcf_file_data << individuals_site_value[j];
                         if (j < individuals_site_value.size() - 1){
