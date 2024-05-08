@@ -1,0 +1,74 @@
+initialize(){
+	if (exists("slimgui")){
+		defineConstant("seed", 18); //random seed value
+		defineConstant("mu", 1.46455e-8); //mutation rate
+		defineConstant("re", 1.29e-8); //recombination rate
+		defineConstant("sp", 10105); //physical start position
+		defineConstant("ep", 80262967); //physical end position
+		defineConstant("on1", 108); //input population 1 individual number
+		defineConstant("op1", "./AFR_chr18.vcf"); //input population 1 file path
+		defineConstant("on2", 103); //input population 2 individual number
+		defineConstant("op2", "./EAS_chr18.vcf"); //input population 2 file path
+		defineConstant("on3", 99); //input population 3 individual number
+		defineConstant("op3", "./EUR_chr18.vcf"); //input population 3 file path
+		defineConstant("gen", 15); //number of generations after admixture event
+		defineConstant("an", 200); //admixed individual number
+		defineConstant("rn", 500); //reference individual number
+		defineConstant("ts", "./admix_3way_tree_sequence.trees"); //output tree sequence file path
+		defineConstant("vcf", "./admix_3way_individuals.vcf"); //output individual file path
+	}
+	setSeed(seed);
+	initializeTreeSeq();
+	initializeMutationRate(mu);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, sp, ep);
+	initializeRecombinationRate(re);
+}
+1 late(){
+	cat("start simulation\n");
+	defineConstant("seed1", getSeed());
+	sim.addSubpop("p1", on1);
+	p1.genomes.readFromVCF(op1, m1);
+	sim.addSubpop("p2", on2);
+	p2.genomes.readFromVCF(op2, m1);
+	sim.addSubpop("p3", on3);
+	p3.genomes.readFromVCF(op3, m1);
+	sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
+	community.rescheduleScriptBlock(s1, start=gen+5, end=gen+5);
+	community.rescheduleScriptBlock(s2, start=gen+6, end=gen+6);
+}
+2 late(){
+	defineConstant("fn", 400);
+	p1.setSubpopulationSize(fn);
+	p2.setSubpopulationSize(fn);
+	p3.setSubpopulationSize(fn);
+}
+3 late(){
+	sim.addSubpopSplit("p4", fn, p1);
+	sim.addSubpopSplit("p5", fn, p2);
+	sim.addSubpopSplit("p6", fn, p3);
+}
+4 late(){
+	defineConstant("apctg1", 0.333333);
+	defineConstant("apctg2", 1.0-(2*apctg1));
+	sim.addSubpop("p7", fn);
+	p7.setMigrationRates(c(p4, p5, p6), c(apctg1, apctg1, apctg2));
+}
+5 late(){
+	p7.setMigrationRates(c(p4, p5, p6), c(0.0, 0.0, 0.0));
+}
+s1 100 late(){
+	defineConstant("rnsize1", asInteger(rn*0.333333));
+	defineConstant("rnsize2", rn-(rnsize1*2));
+	p1.setSubpopulationSize(rnsize1);
+	p2.setSubpopulationSize(rnsize1);
+	p3.setSubpopulationSize(rnsize2);
+	p7.setSubpopulationSize(an);
+}
+s2 101 late(){
+	sim.treeSeqOutput(ts);
+	c(sim.subpopulations[0].individuals.genomes, sim.subpopulations[1].individuals.genomes, sim.subpopulations[2].individuals.genomes, sim.subpopulations[6].individuals.genomes).outputVCF(filePath=vcf, outputMultiallelics=F, append=F, simplifyNucleotides=T);
+	sim.simulationFinished();
+	cat("end simulation\n");
+}
