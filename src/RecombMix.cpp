@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: Nov 30, 2023
+//  * Modified on: Jul 31, 2024
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -53,6 +53,7 @@ static void show_usage(string program_name){
     cout << "\t-g,--genetic <INPUT GENETIC MAPPING FILE>\tInput genetic mapping path and file name\n";
     cout << "\t-a,--ancestry <INPUT POPULATION ANCESTRY FILE>\tInput population ancestry path and file name\n";
     cout << "\t-o,--output <OUTPUT DIRECTORY PATH>\t\tOutput directory path for all files\n";
+    cout << "\t-i,--inferred <OUTPUT INFERRED FILE NAME>\tOutput inferred local ancestry file name\n";
     cout << "\t-e,--weight <WEIGHT>\t\t\t\tWeight of recombination rate in cost function\n";
     cout << "\t-u,--outputcompactpanel <IDENTIFIER>\t\tSpecify whether output compact reference panel (1: true; 0: false)\n";
 }
@@ -102,6 +103,7 @@ int main(int argc, char *argv[]){
         string output_inference_individuals_path_and_file_name;
         string output_compact_panel_path_and_file_name;
         string output_compact_panel_population_label_path_and_file_name;
+        string output_inference_individuals_file_name = "admix_inferred_ancestral_values_local.txt";
         bool output_compact_panel = false;
         bool has_queries = false;
 
@@ -176,6 +178,18 @@ int main(int argc, char *argv[]){
                     return 1;
                 }
             }
+            else if ((argument == "-i") || (argument == "--inferred")){
+                if (i + 1 < argc){
+                    output_inference_individuals_file_name = argv[i + 1];
+                    program_arguments += " i=" + output_inference_individuals_file_name;
+                    i++;
+                }
+                else {
+                    cout << "-i (or --inferred) option requires one argument\n";
+                    cout << "end program" << endl;
+                    return 1;
+                }
+            }
             else if ((argument == "-e") || (argument == "--weight")){
                 if (i + 1 < argc){
                     weight = stod(argv[i + 1]);
@@ -214,7 +228,7 @@ int main(int argc, char *argv[]){
         if (output_directory_path.substr(output_directory_path.size() - 1).compare("/") == 0){
             output_directory_path = output_directory_path.substr(0, output_directory_path.size() - 1);
         }
-        output_inference_individuals_path_and_file_name = output_directory_path + "/admix_inferred_ancestral_values_local.txt";
+        output_inference_individuals_path_and_file_name = output_directory_path + "/" + output_inference_individuals_file_name;
         output_compact_panel_path_and_file_name = output_directory_path + "/compact_reference_panel.vcf.gz";
         output_compact_panel_population_label_path_and_file_name = output_directory_path + "/compact_reference_panel_population_label.txt";
 
