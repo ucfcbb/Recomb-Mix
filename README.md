@@ -5,7 +5,7 @@ Contact Author: Yuan Wei (yuan.wei@ucf.edu)
 
 Recomb-Mix program uses C++ Boost Libraries (https://www.boost.org/), and is compiled using GCC 9.1.0 with -Os optimization flag under a 64-bit Unix-based operating system:
 ```
-g++ -std=c++17 RecombMix.cpp -l boost_iostreams -o RecombMix_v0.5.1 -Os
+g++ -std=c++17 RecombMix.cpp -l boost_iostreams -o RecombMix_v0.6 -Os
 ```
 
 Recomb-Mix program has below parameters:
@@ -16,32 +16,33 @@ Recomb-Mix program has below parameters:
 - o, or output `<OUTPUT DIRECTORY PATH>`, where `<OUTPUT DIRECTORY PATH>` is the output directory path for all files (optional; default is the current directory).
 - i, or inferred `<OUTPUT INFERRED FILE NAME>`, where `<OUTPUT INFERRED FILE NAME>` is the output inferred local ancestry file name (optional; default is admix_inferred_ancestral_values_local.txt).
 - e, or weight `<WEIGHT>`, where `<WEIGHT>` is the weight of cross population penalty in cost function (optional; default is 1.5).
+- f, or frequency `<ALLELE FREQUENCY>`, where `<ALLELE FREQUENCY>` is the minor allele frequency threshold to exclude the allele value whose minor allele frequency is below the threshold (optional; default is 0).
 - u, or outputcompactpanel `<IDENTIFIER>`, where `<IDENTIFIER>` (0 or 1) specifies whether the program outputs a compact reference panel (optional; default is 0: no output).
 
 An example command of running the Recomb-Mix program:
 ```
-./RecombMix_v0.5.1 -p ./reference_panel.vcf -q ./admixture_panel.vcf -a ./reference_panel_population_labels.txt -g ./recombination_map_GRCh37_chr18.txt
+./RecombMix_v0.6 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map_GRCh37_chr18.txt
 ```
 
 The command to get the help of the program:
 ```
-./RecombMix_v0.5.1 -h
+./RecombMix_v0.6 -h
 ```
 
 ## Generate Compact Reference Panel
 Recomb-Mix program can generate a compact panel from a given reference panel and population labels of the reference panel. Below is an example command:
 ```
-./RecombMix_v0.5.1 -p ./reference_panel.vcf -a ./reference_panel_population_labels.txt -o ./result/ -u 1
+./RecombMix_v0.6 -p ./test/reference_panel.vcf -a ./test/reference_panel_population_labels.txt -o ./result/ -u 1
 ```
 
 The generated compact reference panel file and its population labels file are saved in the given output folder. They can be reused for future ancestry inference queries. Below is an example command:
 ```
-./RecombMix_v0.5.1 -p ./result/compact_reference_panel.vcf -q ./admixture_panel.vcf -a ./result/compact_reference_panel_population_labels.txt -g ./recombination_map.txt -o ./result/
+./RecombMix_v0.6 -p ./result/compact_reference_panel.vcf -q ./test/admixture_panel.vcf -a ./result/compact_reference_panel_population_labels.txt -g ./maps/recombination_map.txt -o ./result/
 ```
 
 One can generate a compact reference panel while making local ancestry inference calls on given queries against a given reference panel. The above commands are equivalent to the below one:
 ```
-./RecombMix_v0.5.1 -p ./reference_panel.vcf -q ./admixture_panel.vcf -a ./reference_panel_population_labels.txt -g ./recombination_map.txt -o ./result/ -u 1
+./RecombMix_v0.6 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map.txt -o ./result/ -u 1
 ```
 
 ## Input and Output Files

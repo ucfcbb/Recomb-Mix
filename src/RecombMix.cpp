@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: Jul 31, 2024
+//  * Modified on: Jan 06, 2025
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -55,6 +55,7 @@ static void show_usage(string program_name){
     cout << "\t-o,--output <OUTPUT DIRECTORY PATH>\t\tOutput directory path for all files\n";
     cout << "\t-i,--inferred <OUTPUT INFERRED FILE NAME>\tOutput inferred local ancestry file name\n";
     cout << "\t-e,--weight <WEIGHT>\t\t\t\tWeight of recombination rate in cost function\n";
+    cout << "\t-f,--frequency <ALLELE FREQUENCY>\t\tMinor allele frequency threshold\n";
     cout << "\t-u,--outputcompactpanel <IDENTIFIER>\t\tSpecify whether output compact reference panel (1: true; 0: false)\n";
 }
 
@@ -67,6 +68,7 @@ int main(int argc, char *argv[]){
         bool has_chromosome_id = false;
         string output_directory_path = "./"; //default is current folder
         double weight = 1.5; //recombination rate weight in cost function
+        double maf_threshold = 0.0; //minor allele frequency threshold to include allele values in the graph
 
         //other variables
         string version_number = "0.5"; //program version number
@@ -198,6 +200,18 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-e (or --weight) option requires one argument\n";
+                    cout << "end program" << endl;
+                    return 1;
+                }
+            }
+            else if ((argument == "-f") || (argument == "--frequency")){
+                if (i + 1 < argc){
+                    maf_threshold = stod(argv[i + 1]);
+                    program_arguments += " f=" + to_string(maf_threshold);
+                    i++;
+                }
+                else {
+                    cout << "-f (or --frequency) option requires one argument\n";
                     cout << "end program" << endl;
                     return 1;
                 }
@@ -792,7 +806,16 @@ int main(int argc, char *argv[]){
                 unordered_map<int, tuple<double, int>> hss_min; //min haplotype scores paths of the site per population; key: population_label_id, value: score, haplotype_index
                 vector<int> hps(m, -1); //optimal haplotype paths of the site
                 int population_label_id = -1; //"UNKNOWN";
-                for (const auto & [key_population_label_id, value_allele_frequency_zero] : population_zero_frequency_per_site[panel_physical_position_index_filtered[i]]){
+                for (auto & [key_population_label_id, value_allele_frequency_zero] : population_zero_frequency_per_site[panel_physical_position_index_filtered[i]]){
+                    if (value_allele_frequency_zero <= maf_threshold){
+                        value_allele_frequency_zero = 0.0;
+                    }
+                    else if ((1.0 - value_allele_frequency_zero) <= maf_threshold){
+                        value_allele_frequency_zero = 1.0;
+                    }
+                    else {
+                        value_allele_frequency_zero = 0.5;
+                    }
                     population_label_id = key_population_label_id;
                     double score = numeric_limits<double>::max();
                     int path_index = -1;
