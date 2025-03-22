@@ -49,3 +49,15 @@ One can generate a compact reference panel while making local ancestry inference
 Four input files are required to run Recomb-Mix program: the reference panel file in VCF or compressed VCF (\*.vcf or \*.vcf.gz) format, the admixture panel file in VCF or compressed VCF (\*.vcf or \*.vcf.gz) format, the genetic map file in HapMap text format, and the population labels of reference panel in text format. More than one individual can be included in the admixture panel. The genetic map file uses the HapMap format, whose description should be found in the first line of the file. The format of each line starting with the second line contains four tab-delimited fields: *Chromosome*, *Position(bp)*, *Rate(cM/Mb)*, and *Map(cM)*. Note that the value of the *Rate(cM/Mb)* field is not used. Instead, it is calculated based on the *Position(bp)* and *Map(cM)* fields. If the genetic mapping of the physical position in the VCF file is not found, interpolation is used to estimate the genetic distance of such position. The population labels of the reference panel contain individual's population label per line in a tab-delimited fashion: *Sample id*, *Population label*.
 
 The output file contains the inferred ancestry labels of each individual haplotype in the admixture panel in a tab-delimited text format. Each line represents the result of one individual haplotype, starting with *Admixture individual haplotype id*, followed by a list of inferred segments, having three fields: *Physical start position*, *Physical end position*, *Inferred ancestry label id*. The *Inferred ancestry label id* is a zero-based indexing of population labels in the order of appearance in input population labels of the reference panel file, which can be found in the first line of the file.
+
+## Example
+Below is a tutorial on how to run Recomb-Mix using the example provided in the test folder in this repository. This example infers local ancestry labels of each site for three admixed individuals (data is in *./test/admixture_panel.vcf* file), using 30 reference individuals (data of 10 Africans, 10 Europeans, and 10 Asians is in *./test/reference_panel.vcf* file, and their population labels data is in *./test/reference_panel_population_labels.txt* file). The recombination rates used for the inference are loaded from a recombination map (data is in *./maps/recombination_map.txt* file).
+1. Clone the repository in a local directory
+```
+git clone https://github.com/ucfcbb/Recomb-Mix.git
+```
+2. Run the Recomb-Mix example in the local directory
+```
+./RecombMix_v0.6 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map.txt
+```
+The inferred ancestry labels of each admixed individual haplotype per site are output to a file in the current directory (result data is in *./admix_inferred_ancestral_values_local.txt*). The output file format can be found in [Input and Output Files](https://github.com/ucfcbb/Recomb-Mix/tree/main?tab=readme-ov-file#input-and-output-files) section.
