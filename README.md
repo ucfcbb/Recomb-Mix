@@ -16,7 +16,7 @@ Recomb-Mix program has below parameters:
 - o, or output `<OUTPUT DIRECTORY PATH>`, where `<OUTPUT DIRECTORY PATH>` is the output directory path for all files (optional; default is the current directory).
 - i, or inferred `<OUTPUT INFERRED FILE NAME>`, where `<OUTPUT INFERRED FILE NAME>` is the output inferred local ancestry file name (optional; default is admix_inferred_ancestral_values_local.txt).
 - e, or weight `<WEIGHT>`, where `<WEIGHT>` is the weight of cross population penalty in cost function (optional; default is 1.5).
-- f, or frequency `<ALLELE FREQUENCY>`, where `<ALLELE FREQUENCY>` is the minor allele frequency threshold to exclude the allele value whose minor allele frequency is below the threshold (optional; default is 0).
+- f, or frequency `<ALLELE FREQUENCY>`, where `<ALLELE FREQUENCY>` is the minor allele frequency threshold to exclude the allele values for the markers whose minor allele frequencies are below the threshold (optional; default is 0). By default, it is assumed that the reference panel contains the sequence data. If the reference panel contains SNP-array-like data, it is recommended to use this parameter to filter out minor alleles for the markers based on the given threshold.
 - u, or outputcompactpanel `<IDENTIFIER>`, where `<IDENTIFIER>` (0 or 1) specifies whether the program outputs a compact reference panel (optional; default is 0: no output).
 
 An example command of running the Recomb-Mix program:
