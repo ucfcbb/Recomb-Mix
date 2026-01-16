@@ -1,0 +1,4 @@
+#Sample_ID	Population_Label
+TSI	TSI
+FIN	FIN
+GBR	GBR

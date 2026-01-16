@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: Jan 06, 2025
+//  * Modified on: Dec 22, 2025
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -21,8 +21,10 @@
 #include <algorithm>
 #include <chrono>
 #include <ctime>
+#include <cmath>
 #include <boost/iostreams/filtering_streambuf.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
+#include <omp.h>
 using namespace std;
 
 //remove spaces from string
@@ -57,11 +59,13 @@ static void show_usage(string program_name){
     cout << "\t-e,--weight <WEIGHT>\t\t\t\tWeight of recombination rate in cost function\n";
     cout << "\t-f,--frequency <ALLELE FREQUENCY>\t\tMinor allele frequency threshold\n";
     cout << "\t-u,--outputcompactpanel <IDENTIFIER>\t\tSpecify whether output compact reference panel (1: true; 0: false)\n";
+    cout << "\t-s,--estimate <MAXIMUM GAP PHYSICAL DISTANCE>\tMaximum gap physical distance (number of sites) for local ancestry estimation\n";
+    cout << "\t-t,--threads <NUMBER OF THREADS>\t\tNumber of threads\n";
 }
 
 int main(int argc, char *argv[]){
     try {
-        cout << "start program" << endl;
+        cout << "start program" << "\n";
 
         //input variables with default values
         string chromosome_id = "."; //chromosome id
@@ -71,7 +75,7 @@ int main(int argc, char *argv[]){
         double maf_threshold = 0.0; //minor allele frequency threshold to include allele values in the graph
 
         //other variables
-        string version_number = "0.5"; //program version number
+        string version_number = "0.7"; //program version number
         int number_of_populations = 0; //number of ways of admixture population
         int number_of_site_values = 2; //biallelic (0 or 1)
         char population_delimiter = '\t'; //text format
@@ -86,13 +90,12 @@ int main(int argc, char *argv[]){
         vector<double> panel_recombination_rate_penalties; //reciprocal of the normalized recombination rate in [0, 1]; the large recombination rate, the high probability having recombination event, the low penalty
         vector<unordered_map<int, double>> population_zero_frequency_per_site; //population allele frequencies in reference panel; each site has a map having key: population id; value: allele frequency of site having zero value
 
-        vector<vector<bool>> query_sites;
+        vector<bool> query_intersected_sites; //store intersected sites information only
         int number_of_query_individuals = 0;
         int number_of_query_sites = 0;
         vector<string> query_individual_ids;
         vector<int> query_physical_positions;
 
-        vector<vector<bool>> panel_sites;
         int number_of_panel_individuals = 0;
         int number_of_panel_sites = 0;
         vector<string> panel_individual_ids;
@@ -108,6 +111,9 @@ int main(int argc, char *argv[]){
         string output_inference_individuals_file_name = "admix_inferred_ancestral_values_local.txt";
         bool output_compact_panel = false;
         bool has_queries = false;
+        int input_buffer_size = 1;
+        int maximum_gap_physical_distance = 0;
+        unsigned long number_of_threads = 1;
 
         //get command line arguments
         string program_name = argv[0];
@@ -116,7 +122,7 @@ int main(int argc, char *argv[]){
             string argument = argv[i];
             if ((argument == "-h") || (argument == "--help")){
                 show_usage(argv[0]);
-                cout << "end program" << endl;
+                cout << "end program" << "\n";
                 return 0;
             }
             else if ((argument == "-p") || (argument == "--panel")){
@@ -127,7 +133,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-p (or --panel) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -140,7 +146,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-q (or --query) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -152,7 +158,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-g (or --genetic) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -164,7 +170,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-a (or --ancestry) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -176,7 +182,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-o (or --output) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -188,7 +194,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-i (or --inferred) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -200,7 +206,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-e (or --weight) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -212,7 +218,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-f (or --frequency) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
@@ -225,14 +231,38 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     cout << "-u (or --outputcompactpanel) option requires one argument\n";
-                    cout << "end program" << endl;
+                    cout << "end program" << "\n";
+                    return 1;
+                }
+            }
+            else if ((argument == "-s") || (argument == "--estimate")){
+                if (i + 1 < argc){
+                    maximum_gap_physical_distance = stoi(argv[i + 1]);
+                    program_arguments += " s=" + to_string(maximum_gap_physical_distance);
+                    i++;
+                }
+                else {
+                    cout << "-s (or --estimate) option requires one argument\n";
+                    cout << "end program" << "\n";
+                    return 1;
+                }
+            }
+            else if ((argument == "-t") || (argument == "--threads")){
+                if (i + 1 < argc){
+                    number_of_threads = stoul(argv[i + 1]);
+                    program_arguments += " t=" + to_string(number_of_threads);
+                    i++;
+                }
+                else {
+                    cout << "-t (or --threads) option requires one argument\n";
+                    cout << "end program" << "\n";
                     return 1;
                 }
             }
             else {
-                cout << "unrecognized arguments: " << argument << endl;
+                cout << "unrecognized arguments: " << argument << "\n";
                 show_usage(argv[0]);
-                cout << "end program" << endl;
+                cout << "end program" << "\n";
                 return 1;
             }
         }
@@ -247,15 +277,21 @@ int main(int argc, char *argv[]){
         output_compact_panel_population_label_path_and_file_name = output_directory_path + "/compact_reference_panel_population_label.txt";
 
         //output variables
-        cout << "program name: " << program_name << "\nprogram arguments: " << program_arguments << endl;
-        cout << "weight=" << fixed << setprecision(6) << weight << endl;
-        cout << "output files:" << endl;
-        cout << "local ancestray inference: " << output_inference_individuals_path_and_file_name << endl;
-        if (output_compact_panel){
-            cout << "compact reference panel: " << output_compact_panel_path_and_file_name << endl;
-            cout << "compact reference panel population label: " << output_compact_panel_population_label_path_and_file_name << endl;
+        cout << "program name: " << program_name << "\nprogram arguments: " << program_arguments << "\n";
+        cout << "weight=" << fixed << setprecision(6) << weight << "\n";
+        unsigned long number_of_max_threads = omp_get_max_threads();
+        if (number_of_threads < 1 || number_of_threads > number_of_max_threads){
+            number_of_threads = number_of_max_threads;
         }
-
+        cout << "number_of_threads=" << number_of_threads << endl;
+        cout << "maximum_gap_physical_distance=" << maximum_gap_physical_distance << endl;
+        cout << "output files:" << "\n";
+        cout << "local ancestray inference: " << output_inference_individuals_path_and_file_name << "\n";
+        if (output_compact_panel){
+            cout << "compact reference panel: " << output_compact_panel_path_and_file_name << "\n";
+            cout << "compact reference panel population label: " << output_compact_panel_population_label_path_and_file_name << "\n";
+        }
+        
         //set vcf file header index; vcf file should have: #CHROM POS ID REF ALT QUAL FILTER INFO FORMAT (9 fields) before the first individual id
         int chromosome_id_location_on_file = 0;
         int position_location_on_file = 1;
@@ -272,7 +308,7 @@ int main(int argc, char *argv[]){
         ifstream input_file_data;
         ofstream output_file_data;
 
-        cout << "start read reference ancestry data" << endl;
+        cout << "start read reference ancestry data" << "\n";
 
         //use two maps as bidirectional map to store origin labels and ids
         unordered_map<string, int> origin_to_ids;
@@ -283,7 +319,7 @@ int main(int argc, char *argv[]){
         //read sample population label from file
         input_file_data.open(input_population_path_and_file_name);
         if (!input_file_data){
-            cout << "cannot open file " + input_population_path_and_file_name << endl;
+            cout << "cannot open file " + input_population_path_and_file_name << "\n";
             exit(1);
         }
         if (input_file_data.is_open()){
@@ -314,13 +350,14 @@ int main(int argc, char *argv[]){
             input_file_data.close();
         }
         number_of_populations = population_labels.size();
-        cout << "number_of_populations=" << number_of_populations << endl;
+        cout << "number_of_populations=" << number_of_populations << "\n";
 
-        cout << "end read reference ancestry data" << endl;
+        cout << "end read reference ancestry data" << "\n";
 
-        cout << "start read panel data" << endl;
+        cout << "start read panel data" << "\n";
 
         //read panel data from file
+        streamsize io_buffer_size = input_buffer_size * 1024 * 1024; //default is 1 MB buffer size
         ifstream input_panel_file;
         boost::iostreams::filtering_streambuf<boost::iostreams::input> stream_in_buffer_panel;
         if (input_reference_panel_path_and_file_name.substr(input_reference_panel_path_and_file_name.size() - 2, 2).compare("gz") == 0){
@@ -331,10 +368,10 @@ int main(int argc, char *argv[]){
             input_panel_file.open(input_reference_panel_path_and_file_name, ios_base::in);
         }
         if (!input_panel_file){
-            cout << "cannot open file " + input_reference_panel_path_and_file_name << endl;
+            cout << "cannot open file " + input_reference_panel_path_and_file_name << "\n";
             exit(1);
         }
-        stream_in_buffer_panel.push(input_panel_file);
+        stream_in_buffer_panel.push(input_panel_file, io_buffer_size);
         istream input_vcf_file_data(&stream_in_buffer_panel);
         if (input_panel_file.is_open()){
             int line_number = 0;
@@ -416,8 +453,6 @@ int main(int argc, char *argv[]){
                         }
                     }
                     if (site_of_panel_individuals.size() > 0){
-                        //store current site values from panel individuals
-                        panel_sites.push_back(site_of_panel_individuals);
                         site_of_panel_individuals.clear();
 
                         //store population allele frequency of the site (key: population id; value: population allele frequency of site whose value is zero (note: population allele frequency of site whose value is one = 1 - population allele frequency of site whose value is zero))
@@ -430,31 +465,33 @@ int main(int argc, char *argv[]){
                         number_of_panel_sites++;
                     }
                     else {
-                        cout << "data at line " + to_string(line_number) + " is not valid" << endl;
+                        cout << "data at line " + to_string(line_number) + " is not valid" << "\n";
+                        cout << line_from_file << "\n";
                     }
                 }
                 line_number++;
             }
+            boost::iostreams::close(stream_in_buffer_panel);
             input_panel_file.close();
         }
         
-        cout << "end read panel data" << endl;
+        cout << "end read panel data" << "\n";
 
         //output compact reference panel
         if (output_compact_panel){
             ofstream output_panel_file(output_compact_panel_path_and_file_name, ios_base::out | ios_base::binary);
             if (!output_panel_file){
-                cout << "cannot create or open file " + output_compact_panel_path_and_file_name << endl;
+                cout << "cannot create or open file " + output_compact_panel_path_and_file_name << "\n";
                 exit(1);
             }
             boost::iostreams::filtering_streambuf<boost::iostreams::output> stream_out_buffer;
             stream_out_buffer.push(boost::iostreams::gzip_compressor());
-            stream_out_buffer.push(output_panel_file);
+            stream_out_buffer.push(output_panel_file, io_buffer_size);
             ostream output_vcf_file_data(&stream_out_buffer);
             if (output_panel_file.is_open()){
-                output_vcf_file_data << "##fileformat=VCFv4.2" << endl;
-                output_vcf_file_data << "##source=RecombMix_v" << version_number << endl;
-                output_vcf_file_data << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << endl;
+                output_vcf_file_data << "##fileformat=VCFv4.2" << "\n";
+                output_vcf_file_data << "##source=RecombMix_v" << version_number << "\n";
+                output_vcf_file_data << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << "\n";
                 output_vcf_file_data << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
                 for (int i = 0; i < origin_to_labels.size(); i++){
                     output_vcf_file_data << origin_to_labels[i];
@@ -462,7 +499,7 @@ int main(int argc, char *argv[]){
                         output_vcf_file_data << "\t";
                     }
                     else {
-                        output_vcf_file_data << endl;
+                        output_vcf_file_data << "\n";
                     }
                 }
             }
@@ -491,7 +528,7 @@ int main(int argc, char *argv[]){
                             output_vcf_file_data << "\t";
                         }
                         else {
-                            output_vcf_file_data << endl;
+                            output_vcf_file_data << "\n";
                         }
                     }
                 }
@@ -501,24 +538,24 @@ int main(int argc, char *argv[]){
 
             output_file_data.open(output_compact_panel_population_label_path_and_file_name, ios::trunc);
             if (!output_file_data){
-                cout << "cannot create or open file " + output_compact_panel_population_label_path_and_file_name << endl;
+                cout << "cannot create or open file " + output_compact_panel_population_label_path_and_file_name << "\n";
                 exit(1);
             }
             if (output_file_data.is_open()){
-                output_file_data << "#Sample_ID\tPopulation_Label" << endl;
+                output_file_data << "#Sample_ID\tPopulation_Label" << "\n";
                 for (int i = 0; i < origin_to_labels.size(); i++){
-                    output_file_data << origin_to_labels[i] << "\t" << origin_to_labels[i] << endl;
+                    output_file_data << origin_to_labels[i] << "\t" << origin_to_labels[i] << "\n";
                 }
             }
             output_file_data.close();
         }
 
         if (!has_queries){
-            cout << "end program" << endl;
+            cout << "end program" << "\n";
             return 0;
         }
 
-        cout << "start read query data" << endl;
+        cout << "start read query data" << "\n";
 
         //read query data from file
         int physical_position_panel_current = 0;
@@ -534,10 +571,10 @@ int main(int argc, char *argv[]){
             input_query_file.open(input_query_panel_path_and_file_name, ios_base::in);
         }
         if (!input_query_file){
-            cout << "cannot open file " + input_query_panel_path_and_file_name << endl;
+            cout << "cannot open file " + input_query_panel_path_and_file_name << "\n";
             exit(1);
         }
-        stream_in_buffer_query.push(input_query_file);
+        stream_in_buffer_query.push(input_query_file, io_buffer_size);
         istream input_query_file_data(&stream_in_buffer_query);
         if (input_query_file.is_open()){
             int line_number = 0;
@@ -570,7 +607,7 @@ int main(int argc, char *argv[]){
                 }
                 else {
                     //get query site values
-                    bool is_a_valid_line = false;
+                    bool is_query_site_intersected = false;
                     vector<bool> site_of_query_individuals;
                     vector<string> tokens = split_string(line_from_file, vcf_delimiter);
                     for (int i = 0; i < tokens.size(); i++){
@@ -584,48 +621,53 @@ int main(int argc, char *argv[]){
                             if (physical_position_panel_current < panel_physical_positions.size() && physical_position_query == panel_physical_positions[physical_position_panel_current]){
                                 panel_physical_position_index_filtered.push_back(physical_position_panel_current);
                                 query_physical_position_index_filtered.push_back(number_of_query_sites);
+                                is_query_site_intersected = true;
                             }
                             else {
                                 //this site from query is not in the reference panel, skip it
                                 number_of_query_sites++;
-                                is_a_valid_line = true;
                                 break;
                             }
                         }
                         //get query individual first and second haplotype site values
-                        if (tokens[i].substr(1, 1).compare("|") == 0){ //phased
-                            site_of_query_individuals.push_back(stoi(tokens[i].substr(0, 1)));
-                            site_of_query_individuals.push_back(stoi(tokens[i].substr(2, 1)));
+                        if (i >= individual_id_start_position){
+                            if (tokens[i].substr(1, 1).compare("|") == 0){ //phased biallelic value
+                                int site_of_first_haplotype = stoi(tokens[i].substr(0, 1));
+                                int site_of_second_haplotype = stoi(tokens[i].substr(2, 1));
+                                site_of_query_individuals.push_back(site_of_first_haplotype);
+                                site_of_query_individuals.push_back(site_of_second_haplotype);
+                            }
+                            else {
+                                site_of_query_individuals.clear();
+                                break;
+                            }
                         }
                     }
-                    if (site_of_query_individuals.size() > 0){
+                    if (site_of_query_individuals.size() > 0 && is_query_site_intersected){
                         //store current site values from query individuals
-                        query_sites.push_back(site_of_query_individuals);
+                        query_intersected_sites.insert(query_intersected_sites.end(), site_of_query_individuals.begin(), site_of_query_individuals.end());
                         site_of_query_individuals.clear();
                         number_of_query_sites++;
-                    }
-                    else {
-                        if (!is_a_valid_line){
-                            cout << "data at line " + to_string(line_number) + " is not valid" << endl;
-                        }
                     }
                 }
                 line_number++;
             }
+            boost::iostreams::close(stream_in_buffer_query);
             input_query_file.close();
         }
 
-        cout << "end read query data" << endl;
+        cout << "end read query data" << "\n";
 
-        cout << "number_of_intersecting_markers=" << panel_physical_position_index_filtered.size();
-        cout << ", percentage_of_markers_in_query_covered_by_reference=" << fixed << setprecision(2) << (double(panel_physical_position_index_filtered.size()) / double(query_physical_positions.size())) * 100 << "%" << endl;
+        size_t number_of_intersected_sites = panel_physical_position_index_filtered.size();
+        cout << "number_of_intersecting_markers=" << number_of_intersected_sites;
+        cout << ", percentage_of_markers_in_query_covered_by_reference=" << fixed << setprecision(2) << (query_physical_positions.size() > 0 ? (double(panel_physical_position_index_filtered.size()) / double(query_physical_positions.size())) * 100 : 0) << "%" << "\n";
 
-        cout << "start read map data" << endl;
+        cout << "start read map data" << "\n";
 
         //read genetic map data from file
         input_file_data.open(input_map_path_and_file_name);
         if (!input_file_data){
-            cout << "cannot open file " + input_map_path_and_file_name << endl;
+            cout << "cannot open file " + input_map_path_and_file_name << "\n";
             exit(1);
         }
         if (input_file_data.is_open()){
@@ -693,7 +735,7 @@ int main(int argc, char *argv[]){
         }
 
         //calculate recombination rates (HapMap genetic map)
-        double rr_min = numeric_limits<double>::max();
+        double rr_min = INFINITY;
         double rr_max = numeric_limits<double>::min();
         double rr_curr = 0.0;
         for (int i = 0; i < panel_genetic_positions.size(); i++){
@@ -722,58 +764,45 @@ int main(int argc, char *argv[]){
             panel_recombination_rate_penalties.push_back(2.0 / (rrp_curr + 1));
         }
 
-        cout << "end read map data" << endl;
+        cout << "end read map data" << "\n";
 
-        cout << "start verify data" << endl;
+        cout << "start verify data" << "\n";
 
         bool is_data_satisfied = true;
 
         //verify parameters
         if (panel_physical_position_index_filtered.size() <= 0){
             is_data_satisfied = false;
-            cout << "reference panel has no intersecting markers with query" << endl;
+            cout << "reference panel has no intersecting markers with query" << "\n";
         }
         if (number_of_populations == 0){
             is_data_satisfied = false;
-            cout << "reference panel has no ancestry information" << endl;
+            cout << "reference panel has no ancestry information" << "\n";
         }
         if (weight < 0.0){
             is_data_satisfied = false;
-            cout << "weight of recombination rate is invalid" << endl;
+            cout << "weight of recombination rate is invalid" << "\n";
         }
 
-        cout << "end verify data" << endl;
+        cout << "end verify data" << "\n";
 
         if (!is_data_satisfied){
-            cout << "end program" << endl;
+            cout << "end program" << "\n";
             return 0;
         }
 
         int number_of_query_haplotypes = number_of_query_individuals * 2;
         int number_of_panel_haplotypes = number_of_panel_individuals * 2;
-        cout << "number of query haplotypes: " << to_string(number_of_query_haplotypes) << endl;
-        cout << "number of query sites: " << to_string(number_of_query_sites) << endl;
-        cout << "number of panel haplotypes: " << to_string(number_of_panel_haplotypes) << endl;
-        cout << "number of panel sites: " << to_string(number_of_panel_sites) << endl;
+        cout << "number of query haplotypes: " << to_string(number_of_query_haplotypes) << "\n";
+        cout << "number of query sites: " << to_string(number_of_query_sites) << "\n";
+        cout << "number of panel haplotypes: " << to_string(number_of_panel_haplotypes) << "\n";
+        cout << "number of panel sites: " << to_string(number_of_panel_sites) << "\n";
 
-        int m = number_of_panel_haplotypes;
-        int n = panel_physical_position_index_filtered.size();
-        int q = number_of_query_haplotypes;
+        cout << "start run queries" << "\n";
 
-        //initialize graph
-        vector<vector<double>> scores; //stores score of each site
-        vector<unordered_map<int, tuple<double, int>>> scores_min; //stores minimum scores and paths of each population appearing on the site
-        vector<vector<int>> paths; //store optimal path of each site (haplotype index of the previous site)
-
-        double score_final = numeric_limits<double>::max();
-        int last_site_haplotype_index = -1;
-        vector<int> path_backtracks;
-
-        cout << "start run queries" << endl;
-
-        output_file_data.open(output_inference_individuals_path_and_file_name, ios::app);
+        output_file_data.open(output_inference_individuals_path_and_file_name, ios::trunc);
         if (!output_file_data){
-            cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << endl;
+            cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << "\n";
             exit(1);
         }
         if (output_file_data.is_open()){
@@ -784,29 +813,24 @@ int main(int argc, char *argv[]){
                     output_file_data << "\t";
                 }
                 else {
-                    output_file_data << endl;
+                    output_file_data << "\n";
                 }
             }
         }
         output_file_data.close();
-        
-        for (int query_haplotype_index = 0; query_haplotype_index < q; query_haplotype_index++){
-            //get query haplotype
-            vector<bool> query_site;
-            for (int j = 0 ; j < n; j++){
-                query_site.push_back(query_sites[j][query_haplotype_index]);
-            }
+        vector<string> query_output_buffer(number_of_query_haplotypes);
 
-            //build compact graph based on compact reference panel
-            for (int i = 0; i < panel_physical_position_index_filtered.size(); i++){
-                int node_site_index = i;
-                int prev_node_site_index = i > 0 ? i - 1 : 0;
-                double recombination_rate_penalty = panel_recombination_rate_penalties[prev_node_site_index];
-                vector<double> hss(m, numeric_limits<double>::max()); //haplotype scores of the site
-                unordered_map<int, tuple<double, int>> hss_min; //min haplotype scores paths of the site per population; key: population_label_id, value: score, haplotype_index
-                vector<int> hps(m, -1); //optimal haplotype paths of the site
-                int population_label_id = -1; //"UNKNOWN";
-                for (auto & [key_population_label_id, value_allele_frequency_zero] : population_zero_frequency_per_site[panel_physical_position_index_filtered[i]]){
+        #pragma omp parallel for
+        for (int query_haplotype_index = 0; query_haplotype_index < number_of_query_haplotypes; query_haplotype_index++){
+            vector<double> scores(number_of_intersected_sites * (number_of_populations * 2), INFINITY);
+            vector<int> node_ids_with_min_score_per_population(number_of_intersected_sites * number_of_populations, -1);
+            vector<int> node_ids_with_min_score_overall(number_of_intersected_sites, -1);
+            vector<int> paths(number_of_intersected_sites * (number_of_populations * 2), -1);
+
+            //scan sites in reverse order
+            for (int site_id = 0; site_id < number_of_intersected_sites; site_id++){
+                for (auto & [key_population_label_id, value_allele_frequency_zero] : population_zero_frequency_per_site[panel_physical_position_index_filtered[number_of_intersected_sites - 1 - site_id]]){
+                    //apply minor allele frequency threshold
                     if (value_allele_frequency_zero <= maf_threshold){
                         value_allele_frequency_zero = 0.0;
                     }
@@ -816,183 +840,206 @@ int main(int argc, char *argv[]){
                     else {
                         value_allele_frequency_zero = 0.5;
                     }
-                    population_label_id = key_population_label_id;
-                    double score = numeric_limits<double>::max();
-                    int path_index = -1;
-                    double score_l = 0.0;
-                    int haplotype_id_of_site = -1;
-                    //check site having allele value zero and one
-                    if (value_allele_frequency_zero > 0.0){
-                        int panel_site_value = 0;
-                        int haplotype_id_of_site = population_label_id * 2 + 0;
-                        double score = numeric_limits<double>::max();
-                        int path_index = -1;
-                        double score_l = 0.0;
-                        if (query_site[node_site_index] == panel_site_value){
-                            score_l = 0.0;
+
+                    //calculate mismatch penalty score
+                    double allele_value_zero_mismatch_penalty = INFINITY;
+                    double allele_value_one_mismatch_penalty = INFINITY;
+                    int query_site_value = query_intersected_sites[(number_of_intersected_sites - 1 - site_id) * number_of_query_haplotypes + query_haplotype_index];
+                    if (value_allele_frequency_zero == 0.5){
+                        if (query_site_value == 0){
+                            allele_value_zero_mismatch_penalty = 0.0;
+                            allele_value_one_mismatch_penalty = 1.0;
                         }
                         else {
-                            score_l = 1.0;
+                            allele_value_zero_mismatch_penalty = 1.0;
+                            allele_value_one_mismatch_penalty = 0.0;
                         }
-                        if (i == 0){
-                            score = score_l;
+                    }
+                    else if (value_allele_frequency_zero == 0.0){
+                        if (query_site_value == 0){
+                            allele_value_one_mismatch_penalty = 1.0;
                         }
                         else {
-                            for (auto const & [population_label_id_prev, score_path] : scores_min[i - 1]){
-                                double score_r = population_label_id_prev == population_label_id ? 0.0 : recombination_rate_penalty;
-                                score_r = (weight * score_r);
-                                if (score > get<0>(score_path) + score_l + score_r){
-                                    score = get<0>(score_path) + score_l + score_r;
-                                    path_index = get<1>(score_path);
-                                }
+                            allele_value_one_mismatch_penalty = 0.0;
+                        }
+                    }
+                    else {
+                        if (query_site_value == 0){
+                            allele_value_zero_mismatch_penalty = 0.0;
+                        }
+                        else {
+                            allele_value_zero_mismatch_penalty = 1.0;
+                        }
+                    }
+
+                    //calculate total penalty score
+                    if (site_id == 0){
+                        scores[0 * (number_of_populations * 2) + (key_population_label_id * 2)] = allele_value_zero_mismatch_penalty;
+                        scores[0 * (number_of_populations * 2) + (key_population_label_id * 2 + 1)] = allele_value_one_mismatch_penalty;
+                        if (allele_value_zero_mismatch_penalty > allele_value_one_mismatch_penalty){
+                            node_ids_with_min_score_per_population[0 * number_of_populations + key_population_label_id] = key_population_label_id * 2 + 1;
+                            if (node_ids_with_min_score_overall[0] == -1 || scores[0 * (number_of_populations * 2) + node_ids_with_min_score_overall[0]] > scores[0 * (number_of_populations * 2) + (key_population_label_id * 2 + 1)]){
+                                node_ids_with_min_score_overall[0] = key_population_label_id * 2 + 1;
                             }
                         }
-
-                        //update trackers
-                        hss[haplotype_id_of_site] = score;
-                        if (hss_min.size() > 0 && hss_min.count(population_label_id) > 0){
-                            if (get<0>(hss_min[population_label_id]) > score){
-                                hss_min[population_label_id] = tuple<double, int>(score, haplotype_id_of_site);
-                            }
-                        }
                         else {
-                            hss_min[population_label_id] = tuple<double, int>(score, haplotype_id_of_site);
-                        }
-                        hps[haplotype_id_of_site] = path_index;
-
-                        //track last score and path
-                        if (i == panel_physical_position_index_filtered.size() - 1){
-                            if (score_final > score){
-                                score_final = score;
-                                last_site_haplotype_index = haplotype_id_of_site;
+                            node_ids_with_min_score_per_population[0 * number_of_populations + key_population_label_id] = key_population_label_id * 2;
+                            if (node_ids_with_min_score_overall[0] == -1 || scores[0 * (number_of_populations * 2) + node_ids_with_min_score_overall[0]] > scores[0 * (number_of_populations * 2) + (key_population_label_id * 2)]){
+                                node_ids_with_min_score_overall[0] = key_population_label_id * 2;
                             }
                         }
                     }
-                    if (1.0 - value_allele_frequency_zero > 0.0){
-                        int panel_site_value = 1;
-                        int haplotype_id_of_site = population_label_id * 2 + 1;
-                        double score = numeric_limits<double>::max();
-                        int path_index = -1;
-                        double score_l = 0.0;
-                        if (query_site[node_site_index] == panel_site_value){
-                            score_l = 0.0;
+                    else {
+                        //calculate penalty score for both population nodes
+                        double template_change_penalty = weight * panel_recombination_rate_penalties[number_of_intersected_sites - 1 - site_id];
+                        if (scores[(site_id - 1) * (number_of_populations * 2) + node_ids_with_min_score_per_population[(site_id - 1) * number_of_populations + key_population_label_id]] > scores[(site_id - 1) * (number_of_populations * 2) + node_ids_with_min_score_overall[site_id - 1]] + template_change_penalty){
+                            scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2)] = allele_value_zero_mismatch_penalty + scores[(site_id - 1) * (number_of_populations * 2) + node_ids_with_min_score_overall[site_id - 1]] + template_change_penalty;
+                            paths[site_id * (number_of_populations * 2) + (key_population_label_id * 2)] = node_ids_with_min_score_overall[site_id - 1];
+                            scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2 + 1)] = allele_value_one_mismatch_penalty + scores[(site_id - 1) * (number_of_populations * 2) + node_ids_with_min_score_overall[site_id - 1]] + template_change_penalty;
+                            paths[site_id * (number_of_populations * 2) + (key_population_label_id * 2 + 1)] = node_ids_with_min_score_overall[site_id - 1];
                         }
                         else {
-                            score_l = 1.0;
-                        }
-                        if (i == 0){
-                            score = score_l;
-                        }
-                        else {
-                            for (auto const & [population_label_id_prev, score_path] : scores_min[i - 1]){
-                                double score_r = population_label_id_prev == population_label_id ? 0.0 : recombination_rate_penalty;
-                                score_r = (weight * score_r);
-                                if (score > get<0>(score_path) + score_l + score_r){
-                                    score = get<0>(score_path) + score_l + score_r;
-                                    path_index = get<1>(score_path);
-                                }
-                            }
+                            scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2)] = allele_value_zero_mismatch_penalty + scores[(site_id - 1) * (number_of_populations * 2) + node_ids_with_min_score_per_population[(site_id - 1) * number_of_populations + key_population_label_id]];
+                            paths[site_id * (number_of_populations * 2) + (key_population_label_id * 2)] = node_ids_with_min_score_per_population[(site_id - 1) * number_of_populations + key_population_label_id];
+                            scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2 + 1)] = allele_value_one_mismatch_penalty + scores[(site_id - 1) * (number_of_populations * 2) + node_ids_with_min_score_per_population[(site_id - 1) * number_of_populations + key_population_label_id]];
+                            paths[site_id * (number_of_populations * 2) + (key_population_label_id * 2 + 1)] = node_ids_with_min_score_per_population[(site_id - 1) * number_of_populations + key_population_label_id];
                         }
 
-                        //update trackers
-                        hss[haplotype_id_of_site] = score;
-                        if (hss_min.size() > 0 && hss_min.count(population_label_id) > 0){
-                            if (get<0>(hss_min[population_label_id]) > score){
-                                hss_min[population_label_id] = tuple<double, int>(score, haplotype_id_of_site);
-                            }
+                        if (node_ids_with_min_score_per_population[site_id * number_of_populations + key_population_label_id] < 0 || scores[site_id * (number_of_populations * 2) + node_ids_with_min_score_per_population[site_id * number_of_populations + key_population_label_id]] > scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2)]){
+                            node_ids_with_min_score_per_population[site_id * number_of_populations + key_population_label_id] = key_population_label_id * 2;
                         }
-                        else {
-                            hss_min[population_label_id] = tuple<double, int>(score, haplotype_id_of_site);
+                        if (node_ids_with_min_score_per_population[site_id * number_of_populations + key_population_label_id] < 0 || scores[site_id * (number_of_populations * 2) + node_ids_with_min_score_per_population[site_id * number_of_populations + key_population_label_id]] > scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2 + 1)]){
+                            node_ids_with_min_score_per_population[site_id * number_of_populations + key_population_label_id] = key_population_label_id * 2 + 1;
                         }
-                        hps[haplotype_id_of_site] = path_index;
 
-                        //track last score and path
-                        if (i == panel_physical_position_index_filtered.size() - 1){
-                            if (score_final > score){
-                                score_final = score;
-                                last_site_haplotype_index = haplotype_id_of_site;
-                            }
+                        if (node_ids_with_min_score_overall[site_id] < 0 || scores[site_id * (number_of_populations * 2) + node_ids_with_min_score_overall[site_id]] > scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2)]){
+                            node_ids_with_min_score_overall[site_id] = key_population_label_id * 2;
+                        }
+                        if (node_ids_with_min_score_overall[site_id] < 0 || scores[site_id * (number_of_populations * 2) + node_ids_with_min_score_overall[site_id]] > scores[site_id * (number_of_populations * 2) + (key_population_label_id * 2 + 1)]){
+                            node_ids_with_min_score_overall[site_id] = key_population_label_id * 2 + 1;
                         }
                     }
                 }
-                scores.push_back(hss);
-                scores_min.push_back(hss_min);
-                paths.push_back(hps);
             }
 
-            int j = last_site_haplotype_index;
-            for (int i = scores.size() - 1; i >= 0; i--){
-                path_backtracks.push_back(j);
-                j = paths[i][j];
+            //find node with min score for the first site
+            int node_id_selected = 0;
+            for (int node_id = 1; node_id < number_of_populations * 2; node_id++){
+                if (scores[(number_of_intersected_sites - 1) * (number_of_populations * 2) + node_id_selected] > scores[(number_of_intersected_sites - 1) * (number_of_populations * 2) + node_id]){
+                    node_id_selected = node_id;
+                }
             }
 
-            //merge and store consecutive sites having the same ancestral value
-            vector<tuple<int, int, int>> inferred_segments; //inferred ancestral value of each site (compressed): start_index, end_index (inclusive), population_label_id
-            int start_position_prev = -2;
-            int population_label_prev = -2;
-            int k1 = query_physical_position_index_filtered.size() - 1; //for tracking intersected sites
-            int k2 = panel_physical_position_index_filtered.size() - 1; //for getting population label
-            for (int i = number_of_query_sites - 1; i >= 0; i--){ //traverse original number of sites in query panel; if no intersection with reference panel, mark -1 as its population label
-                //get population label
-                int population_label_id_selected = -1;
-                if (query_physical_position_index_filtered[k1] == i){
-                    //intersected
-                    while (panel_physical_position_index_filtered[k2] > i){
-                        //it is guaranteed to find a site which satisfied panel_physical_position_index_filtered[k2] == i
-                        k2--;
-                    }
-                    population_label_id_selected = path_backtracks[k2] / 2;
-                    k1--;
-                }
-                else {
-                    //not intersected
-                    population_label_id_selected = -1;
-                }
+            //trace back population labels while merge and output consecutive sites having the same ancestral value
+            if (maximum_gap_physical_distance <= 0){
                 //merge consecutive sites having the same ancestral value
-                if (population_label_id_selected != population_label_prev){
-                    if (population_label_prev != -2){
-                        //store the segment inferred result
-                        inferred_segments.push_back(tuple<int, int, int>(start_position_prev, query_physical_positions[number_of_query_sites - 1 - i - 1], population_label_prev));
+                query_output_buffer[query_haplotype_index] = query_individual_ids[query_haplotype_index / 2] + "_" + to_string(query_haplotype_index % 2);
+                int start_position_prev = -2;
+                int population_label_prev = -2;
+                int filtered_site_id = number_of_intersected_sites - 1;
+                for (int site_id = 0; site_id < number_of_query_sites; site_id++){
+                    int population_label_id_selected = -1;
+                    if (filtered_site_id >= 0 && query_physical_position_index_filtered[number_of_intersected_sites - 1 - filtered_site_id] == site_id){
+                        population_label_id_selected = node_id_selected / 2;
+                        if (filtered_site_id > 0){
+                            node_id_selected = paths[filtered_site_id * (number_of_populations * 2) + node_id_selected];
+                            filtered_site_id -= 1;
+                        }
                     }
-                    start_position_prev = query_physical_positions[number_of_query_sites - 1 - i];
-                    population_label_prev = population_label_id_selected;
+                    if (population_label_id_selected != population_label_prev){
+                        if (population_label_prev != -2){
+                            query_output_buffer[query_haplotype_index] += "\t" + to_string(start_position_prev) + "\t" + to_string(query_physical_positions[site_id - 1]) + "\t" + to_string(population_label_prev);
+                        }
+                        start_position_prev = query_physical_positions[site_id];
+                        population_label_prev = population_label_id_selected;
+                    }
+                }
+                query_output_buffer[query_haplotype_index] += "\t" + to_string(start_position_prev) + "\t" + to_string(query_physical_positions[number_of_query_sites - 1]) + "\t" + to_string(population_label_prev) + "\n";
+            }
+            else {
+                //merge consecutive sites having the same ancestral value while estimate the gap ancestry label
+                query_output_buffer[query_haplotype_index] = query_individual_ids[query_haplotype_index / 2] + "_" + to_string(query_haplotype_index % 2);
+                int start_site_id_second_last = -1;
+                int population_label_id_second_last = -1;
+                int start_site_id_last = -1;
+                int population_label_id_last = -1;
+                int filtered_site_id = number_of_intersected_sites - 1;
+                for (int site_id = 0; site_id < number_of_query_sites; site_id++){
+                    int population_label_id_selected = -1;
+                    if (filtered_site_id >= 0 && query_physical_position_index_filtered[number_of_intersected_sites - 1 - filtered_site_id] == site_id){
+                        population_label_id_selected = node_id_selected / 2;
+                        if (filtered_site_id > 0){
+                            node_id_selected = paths[filtered_site_id * (number_of_populations * 2) + node_id_selected];
+                            filtered_site_id -= 1;
+                        }
+                    }
+                    if (population_label_id_last > -1){
+                        if (population_label_id_selected > -1){
+                            if (population_label_id_last != population_label_id_selected){
+                                query_output_buffer[query_haplotype_index] += "\t" + to_string(query_physical_positions[start_site_id_last]) + "\t" + to_string(query_physical_positions[site_id - 1]) + "\t" + to_string(population_label_id_last);
+                                population_label_id_last = population_label_id_selected;
+                                start_site_id_last = site_id;
+                            }
+                        }
+                        else {
+                            population_label_id_second_last = population_label_id_last;
+                            start_site_id_second_last = start_site_id_last;
+                            population_label_id_last = -1;
+                            start_site_id_last = site_id;
+                        }
+                    }
+                    else {
+                        if (population_label_id_second_last > -1){
+                            if (population_label_id_selected > -1){
+                                if ((population_label_id_second_last == population_label_id_selected) && (site_id - start_site_id_last <= maximum_gap_physical_distance)){
+                                    population_label_id_last = population_label_id_second_last;
+                                    start_site_id_last = start_site_id_second_last;
+                                    population_label_id_second_last = -1;
+                                }
+                                else {
+                                    query_output_buffer[query_haplotype_index] += "\t" + to_string(query_physical_positions[start_site_id_second_last]) + "\t" + to_string(query_physical_positions[start_site_id_last - 1]) + "\t" + to_string(population_label_id_second_last);
+                                    population_label_id_second_last = -1;
+                                    population_label_id_last = population_label_id_selected;
+                                    start_site_id_last = site_id;
+                                }
+                            }
+                        }
+                        else {
+                            if (population_label_id_selected > -1){
+                                population_label_id_last = population_label_id_selected;
+                                start_site_id_last = site_id;
+                            }
+                        }
+                    }
+                }
+                if (population_label_id_second_last > -1){
+                    query_output_buffer[query_haplotype_index] += "\t" + to_string(query_physical_positions[start_site_id_second_last]) + "\t" + to_string(query_physical_positions[start_site_id_last - 1]) + "\t" + to_string(population_label_id_second_last);
+                }
+                if (population_label_id_last > -1){
+                    query_output_buffer[query_haplotype_index] += "\t" + to_string(query_physical_positions[start_site_id_last]) + "\t" + to_string(query_physical_positions[number_of_query_sites - 1]) + "\t" + to_string(population_label_id_last);
                 }
             }
-            //store the last segment inferred result
-            inferred_segments.push_back(tuple<int, int, int>(start_position_prev, query_physical_positions[number_of_query_sites - 1], population_label_prev));
-
-            //output inference result
-            string query_individual_id = query_individual_ids[query_haplotype_index / 2];
-            output_file_data.open(output_inference_individuals_path_and_file_name, ios::app);
-            if (!output_file_data){
-                cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << endl;
-                exit(1);
-            }
-            if (output_file_data.is_open()){
-                //output file format: query_individual_id_query_haplotype_index \t origin_label_ids of each segment's start position, end position, population value (merged if consecutive segments having the same ancestral value) separated by \t
-                output_file_data << query_individual_id << "_" << (query_haplotype_index % 2);
-                for (int i = 0; i < inferred_segments.size(); i++){
-                    output_file_data << "\t" << get<0>(inferred_segments[i]) << "\t" << get<1>(inferred_segments[i]) << "\t" << get<2>(inferred_segments[i]);
-                }
-                output_file_data << endl;
-            }
-            output_file_data.close();
-
-            //reset variables for next query haplotype
-            scores.clear();
-            scores_min.clear();
-            paths.clear();
-            score_final = numeric_limits<double>::max();
-            last_site_haplotype_index = -1;
-            path_backtracks.clear();
         }
 
-        cout << "end run queries" << endl;
+        cout << "end run queries" << "\n";
 
-        cout << "end program" << endl;
+        output_file_data.open(output_inference_individuals_path_and_file_name, ios::app);
+        if (!output_file_data){
+            cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << "\n";
+            exit(1);
+        }
+        if (output_file_data.is_open()){
+            //output file format: query_individual_id_query_haplotype_index \t origin_label_ids of each segment's start position, end position, population value (merged if consecutive segments having the same ancestral value) separated by \t
+            for (int query_haplotype_index = 0; query_haplotype_index < number_of_query_haplotypes; query_haplotype_index++){   
+                output_file_data << query_output_buffer[query_haplotype_index] << endl;
+            }
+        }
+        output_file_data.close();
+
+        cout << "end program" << "\n";
     }
     catch (exception & exception_output){
-        cerr << exception_output.what() << endl;
+        cerr << exception_output.what() << "\n";
     }
     return 0;
 }

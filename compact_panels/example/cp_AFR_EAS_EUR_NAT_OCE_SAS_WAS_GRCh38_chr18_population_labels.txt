@@ -1,0 +1,8 @@
+#Sample_ID	Population_Label
+AFR	AFR
+EAS	EAS
+EUR	EUR
+NAT	NAT
+OCE	OCE
+SAS	SAS
+WAS	WAS
