@@ -3,9 +3,9 @@ Contact Author: Yuan Wei (yuan.wei@ucf.edu)
 
 ## Run Recomb-Mix Program
 
-Recomb-Mix program uses C++ Boost Libraries (https://www.boost.org/), and is compiled using GCC 9.1.0 with -Os optimization flag under a 64-bit Unix-based operating system:
+Recomb-Mix program uses C++ Boost and OpenMP Libraries (https://www.boost.org/, https://www.openmp.org/), and is compiled using GCC 9.1.0 with -Os optimization flag under a 64-bit Unix-based operating system:
 ```
-g++ -std=c++17 RecombMix.cpp -l boost_iostreams -o RecombMix_v0.6 -Os
+g++ -std=c++17 -fopenmp RecombMix.cpp -l boost_iostreams -o RecombMix_v0.7 -Os
 ```
 
 Recomb-Mix program has below parameters:
@@ -18,31 +18,36 @@ Recomb-Mix program has below parameters:
 - e, or weight `<WEIGHT>`, where `<WEIGHT>` is the weight of cross population penalty in cost function (optional; default is 1.5).
 - f, or frequency `<ALLELE FREQUENCY>`, where `<ALLELE FREQUENCY>` is the minor allele frequency threshold to exclude the allele values for the markers whose minor allele frequencies are below the threshold (optional; default is 0). By default, it is assumed that the reference panel contains the sequence data. If the reference panel contains SNP-array-like data, it is recommended to use this parameter to filter out minor alleles for the markers based on the given threshold.
 - u, or outputcompactpanel `<IDENTIFIER>`, where `<IDENTIFIER>` (0 or 1) specifies whether the program outputs a compact reference panel (optional; default is 0: no output).
+- s, or estimate `<MAXIMUM GAP PHYSICAL DISTANCE>`, where `<MAXIMUM GAP PHYSICAL DISTANCE>` is the maximum gap physical distance (number of markers) for local ancestry estimation (optional; default is 0: no estimation). A gap refers to a query region with at least one but no more than the maximum gap physical distance markers that are not present in the reference panel. An estimate is made only if the inferred ancestral labels of both the left and right adjacent regions are identical, and the shared ancestral label is used to smooth out the gap.
+- t, or threads `<NUMBER OF THREADS>`, where `<NUMBER OF THREADS>` is the number of CPU cores to use (optional; default is the number of available CPU cores).
 
 An example command of running the Recomb-Mix program:
 ```
-./RecombMix_v0.6 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map_GRCh37_chr18.txt
+./RecombMix_v0.7 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map_GRCh37_chr18.txt
 ```
 
 The command to get the help of the program:
 ```
-./RecombMix_v0.6 -h
+./RecombMix_v0.7 -h
 ```
 
-## Generate Compact Reference Panel
+## Compact Reference Panel
+Recomb-Mix program utilizes compact reference panels for local ancestry inference. A compact reference panel is space-efficient, as it includes only sample templates containing population-level information. The available compact reference panels (located in *./compact_panels/tgp_hgdp*) were generated using the Recomb-Mix's output compact panel option. The original panels were comprised of the 1000 Genomes Project (TGP) and the Human Genome Diversity Project (HGDP) (https://www.internationalgenome.org/), and were phased and imputed using [Beagle](https://faculty.washington.edu/browning/beagle/beagle.html).
+
+## Generate Your Own Compact Reference Panel
 Recomb-Mix program can generate a compact panel from a given reference panel and population labels of the reference panel. Below is an example command:
 ```
-./RecombMix_v0.6 -p ./test/reference_panel.vcf -a ./test/reference_panel_population_labels.txt -o ./result/ -u 1
+./RecombMix_v0.7 -p ./test/reference_panel.vcf -a ./test/reference_panel_population_labels.txt -o ./result/ -u 1
 ```
 
 The generated compact reference panel file and its population labels file are saved in the given output folder. They can be reused for future ancestry inference queries. Below is an example command:
 ```
-./RecombMix_v0.6 -p ./result/compact_reference_panel.vcf -q ./test/admixture_panel.vcf -a ./result/compact_reference_panel_population_labels.txt -g ./maps/recombination_map.txt -o ./result/
+./RecombMix_v0.7 -p ./result/compact_reference_panel.vcf -q ./test/admixture_panel.vcf -a ./result/compact_reference_panel_population_labels.txt -g ./maps/recombination_map.txt -o ./result/
 ```
 
 One can generate a compact reference panel while making local ancestry inference calls on given queries against a given reference panel. The above commands are equivalent to the below one:
 ```
-./RecombMix_v0.6 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map.txt -o ./result/ -u 1
+./RecombMix_v0.7 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map.txt -o ./result/ -u 1
 ```
 
 ## Input and Output Files
@@ -58,6 +63,6 @@ git clone https://github.com/ucfcbb/Recomb-Mix.git
 ```
 2. Run the Recomb-Mix example in the local directory
 ```
-./RecombMix_v0.6 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map.txt
+./RecombMix_v0.7 -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/recombination_map.txt
 ```
 The inferred ancestry labels of each admixed individual haplotype per site are output to a file in the current directory (result data is in *./admix_inferred_ancestral_values_local.txt*). The output file format can be found in [Input and Output Files](https://github.com/ucfcbb/Recomb-Mix/tree/main?tab=readme-ov-file#input-and-output-files) section.
