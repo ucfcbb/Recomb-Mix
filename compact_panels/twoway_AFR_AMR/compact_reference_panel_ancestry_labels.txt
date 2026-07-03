@@ -1,0 +1,3 @@
+#Sample_ID	Ancestry_Label
+AMR	AMR
+AFR	AFR
