@@ -1,0 +1,3 @@
+#Sample_ID	Ancestry_Label
+EUR	EUR
+AFR	AFR
