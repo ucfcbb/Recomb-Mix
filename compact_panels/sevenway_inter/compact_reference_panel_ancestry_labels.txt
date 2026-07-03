@@ -1,0 +1,8 @@
+#Sample_ID	Ancestry_Label
+EUR	EUR
+EAS	EAS
+AMR	AMR
+SAS	SAS
+AFR	AFR
+OCE	OCE
+WAS	WAS
