@@ -1,0 +1,4 @@
+#Sample_ID	Ancestry_Label
+GBR	GBR
+FIN	FIN
+TSI	TSI
