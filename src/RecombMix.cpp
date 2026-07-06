@@ -3,7 +3,7 @@
 //  * Description: Local Ancestry Inference based on improved Loter with new model, using recombination rate.
 //  * Author: Yuan Wei 
 //  * Created on: Jan 21, 2023
-//  * Modified on: Dec 22, 2025
+//  * Modified on: Jul 03, 2026
 //  * --------------------------------------------------------------------------------------------------------
 
 #include <iostream>
@@ -46,7 +46,8 @@ vector<string> split_string(string line, char delimiter){
     return tokens;
 }
 
-static void show_usage(string program_name){
+static void show_usage(string program_name, string version_number){
+    cout << "Name: Recomb-Mix V" << version_number << "\n";
     cout << "Usage: " << program_name << " <Option(s)>\n";
     cout << "Option(s):\n";
     cout << "\t-h,--help\t\t\t\t\tShow this help message\n";
@@ -58,7 +59,6 @@ static void show_usage(string program_name){
     cout << "\t-i,--inferred <OUTPUT INFERRED FILE NAME>\tOutput inferred local ancestry file name\n";
     cout << "\t-e,--weight <WEIGHT>\t\t\t\tWeight of recombination rate in cost function\n";
     cout << "\t-f,--frequency <ALLELE FREQUENCY>\t\tMinor allele frequency threshold\n";
-    cout << "\t-u,--outputcompactpanel <IDENTIFIER>\t\tSpecify whether output compact reference panel (1: true; 0: false)\n";
     cout << "\t-s,--estimate <MAXIMUM GAP PHYSICAL DISTANCE>\tMaximum gap physical distance (number of sites) for local ancestry estimation\n";
     cout << "\t-t,--threads <NUMBER OF THREADS>\t\tNumber of threads\n";
 }
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]){
         double maf_threshold = 0.0; //minor allele frequency threshold to include allele values in the graph
 
         //other variables
-        string version_number = "0.7"; //program version number
+        string version_number = "0.8"; //program version number
         int number_of_populations = 0; //number of ways of admixture population
         int number_of_site_values = 2; //biallelic (0 or 1)
         char population_delimiter = '\t'; //text format
@@ -106,10 +106,7 @@ int main(int argc, char *argv[]){
         string input_map_path_and_file_name;
         string input_population_path_and_file_name;
         string output_inference_individuals_path_and_file_name;
-        string output_compact_panel_path_and_file_name;
-        string output_compact_panel_population_label_path_and_file_name;
-        string output_inference_individuals_file_name = "admix_inferred_ancestral_values_local.txt";
-        bool output_compact_panel = false;
+        string output_inference_individuals_file_name = "inferred_local_ancestral_values.txt";
         bool has_queries = false;
         int input_buffer_size = 1;
         int maximum_gap_physical_distance = 0;
@@ -121,7 +118,7 @@ int main(int argc, char *argv[]){
         for (int i = 1; i < argc; i++){
             string argument = argv[i];
             if ((argument == "-h") || (argument == "--help")){
-                show_usage(argv[0]);
+                show_usage(argv[0], version_number);
                 cout << "end program" << "\n";
                 return 0;
             }
@@ -222,19 +219,6 @@ int main(int argc, char *argv[]){
                     return 1;
                 }
             }
-            else if ((argument == "-u") || (argument == "--outputcompactpanel")){
-                if (i + 1 < argc){
-                    int output_compact_panel_int = stoi(argv[i + 1]);
-                    output_compact_panel = output_compact_panel_int == 1 ? true : false;
-                    program_arguments += " u=" + to_string(output_compact_panel_int);
-                    i++;
-                }
-                else {
-                    cout << "-u (or --outputcompactpanel) option requires one argument\n";
-                    cout << "end program" << "\n";
-                    return 1;
-                }
-            }
             else if ((argument == "-s") || (argument == "--estimate")){
                 if (i + 1 < argc){
                     maximum_gap_physical_distance = stoi(argv[i + 1]);
@@ -261,7 +245,7 @@ int main(int argc, char *argv[]){
             }
             else {
                 cout << "unrecognized arguments: " << argument << "\n";
-                show_usage(argv[0]);
+                show_usage(argv[0], version_number);
                 cout << "end program" << "\n";
                 return 1;
             }
@@ -273,8 +257,6 @@ int main(int argc, char *argv[]){
             output_directory_path = output_directory_path.substr(0, output_directory_path.size() - 1);
         }
         output_inference_individuals_path_and_file_name = output_directory_path + "/" + output_inference_individuals_file_name;
-        output_compact_panel_path_and_file_name = output_directory_path + "/compact_reference_panel.vcf.gz";
-        output_compact_panel_population_label_path_and_file_name = output_directory_path + "/compact_reference_panel_population_label.txt";
 
         //output variables
         cout << "program name: " << program_name << "\nprogram arguments: " << program_arguments << "\n";
@@ -287,10 +269,6 @@ int main(int argc, char *argv[]){
         cout << "maximum_gap_physical_distance=" << maximum_gap_physical_distance << endl;
         cout << "output files:" << "\n";
         cout << "local ancestray inference: " << output_inference_individuals_path_and_file_name << "\n";
-        if (output_compact_panel){
-            cout << "compact reference panel: " << output_compact_panel_path_and_file_name << "\n";
-            cout << "compact reference panel population label: " << output_compact_panel_population_label_path_and_file_name << "\n";
-        }
         
         //set vcf file header index; vcf file should have: #CHROM POS ID REF ALT QUAL FILTER INFO FORMAT (9 fields) before the first individual id
         int chromosome_id_location_on_file = 0;
@@ -477,79 +455,6 @@ int main(int argc, char *argv[]){
         
         cout << "end read panel data" << "\n";
 
-        //output compact reference panel
-        if (output_compact_panel){
-            ofstream output_panel_file(output_compact_panel_path_and_file_name, ios_base::out | ios_base::binary);
-            if (!output_panel_file){
-                cout << "cannot create or open file " + output_compact_panel_path_and_file_name << "\n";
-                exit(1);
-            }
-            boost::iostreams::filtering_streambuf<boost::iostreams::output> stream_out_buffer;
-            stream_out_buffer.push(boost::iostreams::gzip_compressor());
-            stream_out_buffer.push(output_panel_file, io_buffer_size);
-            ostream output_vcf_file_data(&stream_out_buffer);
-            if (output_panel_file.is_open()){
-                output_vcf_file_data << "##fileformat=VCFv4.2" << "\n";
-                output_vcf_file_data << "##source=RecombMix_v" << version_number << "\n";
-                output_vcf_file_data << "##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">" << "\n";
-                output_vcf_file_data << "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t";
-                for (int i = 0; i < origin_to_labels.size(); i++){
-                    output_vcf_file_data << origin_to_labels[i];
-                    if (i < origin_to_labels.size() - 1){
-                        output_vcf_file_data << "\t";
-                    }
-                    else {
-                        output_vcf_file_data << "\n";
-                    }
-                }
-            }
-            for (int i = 0; i < population_zero_frequency_per_site.size(); i++){
-                vector<string> individuals_site_value(origin_to_labels.size());
-                for (const auto & [key_population_label_id, value_allele_frequency_zero] : population_zero_frequency_per_site[i]){
-                    string site_value_str = "";
-                    if (value_allele_frequency_zero > 0.0){
-                        if (1.0 - value_allele_frequency_zero > 0.0){
-                            site_value_str = "0/1";
-                        }
-                        else {
-                            site_value_str = "0/0";
-                        }
-                    }
-                    else {
-                        site_value_str = "1/1";
-                    }
-                    individuals_site_value[key_population_label_id] = site_value_str;
-                }
-                if (output_panel_file.is_open()){
-                    output_vcf_file_data << chromosome_id << "\t" << panel_physical_positions[i] << "\t.\t.\t.\t.\tPASS\t.\tGT\t";
-                    for (int j = 0; j < individuals_site_value.size(); j++){
-                        output_vcf_file_data << individuals_site_value[j];
-                        if (j < individuals_site_value.size() - 1){
-                            output_vcf_file_data << "\t";
-                        }
-                        else {
-                            output_vcf_file_data << "\n";
-                        }
-                    }
-                }
-            }
-            boost::iostreams::close(stream_out_buffer);
-            output_panel_file.close();
-
-            output_file_data.open(output_compact_panel_population_label_path_and_file_name, ios::trunc);
-            if (!output_file_data){
-                cout << "cannot create or open file " + output_compact_panel_population_label_path_and_file_name << "\n";
-                exit(1);
-            }
-            if (output_file_data.is_open()){
-                output_file_data << "#Sample_ID\tPopulation_Label" << "\n";
-                for (int i = 0; i < origin_to_labels.size(); i++){
-                    output_file_data << origin_to_labels[i] << "\t" << origin_to_labels[i] << "\n";
-                }
-            }
-            output_file_data.close();
-        }
-
         if (!has_queries){
             cout << "end program" << "\n";
             return 0;
@@ -561,6 +466,7 @@ int main(int argc, char *argv[]){
         int physical_position_panel_current = 0;
         vector<int> panel_physical_position_index_filtered;
         vector<int> query_physical_position_index_filtered;
+        unordered_map<int, int> panel_physical_position_filtered_index;
         ifstream input_query_file;
         boost::iostreams::filtering_streambuf<boost::iostreams::input> stream_in_buffer_query;
         if (input_query_panel_path_and_file_name.substr(input_query_panel_path_and_file_name.size() - 2, 2).compare("gz") == 0){
@@ -621,6 +527,7 @@ int main(int argc, char *argv[]){
                             if (physical_position_panel_current < panel_physical_positions.size() && physical_position_query == panel_physical_positions[physical_position_panel_current]){
                                 panel_physical_position_index_filtered.push_back(physical_position_panel_current);
                                 query_physical_position_index_filtered.push_back(number_of_query_sites);
+                                panel_physical_position_filtered_index[panel_physical_positions[physical_position_panel_current]] = panel_physical_position_index_filtered.size() - 1;
                                 is_query_site_intersected = true;
                             }
                             else {
@@ -800,24 +707,6 @@ int main(int argc, char *argv[]){
 
         cout << "start run queries" << "\n";
 
-        output_file_data.open(output_inference_individuals_path_and_file_name, ios::trunc);
-        if (!output_file_data){
-            cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << "\n";
-            exit(1);
-        }
-        if (output_file_data.is_open()){
-            output_file_data << "#Population label and ID: ";
-            for (int i = 0; i < origin_to_labels.size(); i++){
-                output_file_data << origin_to_labels[i] << "=" << i;
-                if (i < origin_to_labels.size() - 1){
-                    output_file_data << "\t";
-                }
-                else {
-                    output_file_data << "\n";
-                }
-            }
-        }
-        output_file_data.close();
         vector<string> query_output_buffer(number_of_query_haplotypes);
 
         #pragma omp parallel for
@@ -1023,15 +912,28 @@ int main(int argc, char *argv[]){
 
         cout << "end run queries" << "\n";
 
-        output_file_data.open(output_inference_individuals_path_and_file_name, ios::app);
+        //output in run-length encoding format
+        output_file_data.open(output_inference_individuals_path_and_file_name, ios::trunc);
         if (!output_file_data){
             cout << "cannot create or open file " + output_inference_individuals_path_and_file_name << "\n";
             exit(1);
         }
         if (output_file_data.is_open()){
-            //output file format: query_individual_id_query_haplotype_index \t origin_label_ids of each segment's start position, end position, population value (merged if consecutive segments having the same ancestral value) separated by \t
+            output_file_data << "#Ancestry\n";
+            for (int i = 0; i < origin_to_labels.size(); i++){
+                output_file_data << origin_to_labels[i] << "\t" << i << "\n";
+            }
+        
+            //output physical positions
+            output_file_data << "#Position\n";
+            for (int i = 0; i < query_physical_positions.size(); i++){
+                output_file_data << query_physical_positions[i] << "\n";
+            }
+
+            //run-length encoding format: query_individual_id_query_haplotype_index \t origin_label_ids of each segment's start position, end position, population value (merged if consecutive segments having the same ancestral value) separated by \t
+            output_file_data << "#Result\n";
             for (int query_haplotype_index = 0; query_haplotype_index < number_of_query_haplotypes; query_haplotype_index++){   
-                output_file_data << query_output_buffer[query_haplotype_index] << endl;
+                output_file_data << query_output_buffer[query_haplotype_index];
             }
         }
         output_file_data.close();
