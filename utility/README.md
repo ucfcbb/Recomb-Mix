@@ -22,7 +22,36 @@ An example command of running the Compact Reference Panel Generator program:
 
 ## Convert Your Local Ancestry Calls to Other Formats
 
-The Ancestry Call Converter can convert the local ancestry inference result from the run-length encoding format (the default output format of the Recomb-Mix program) to other formats for downstream analysis.
+The Ancestry Call Converter can convert the local ancestry inference result from the run-length encoding format (the default output format of the Recomb-Mix program) to ancestry dosage and ancestry state formats for downstream analysis.
+
+```
+Run-length Encoding
+├── Ancestry
+│   ├── population_label
+│   └── population_id
+├── Position
+│   └── physical_position
+└── Result
+    ├── individual_haplotype_id
+    └── interval
+        ├── start_physical_position
+        ├── end_physical_position
+        └── ancestry_id
+```
+
+```
+Ancestry Dosage
+└── Result
+    ├── physical_position
+    └── individual_diploid_ancestry_dosage
+```
+
+```
+Ancestry State
+└── Result
+    ├── physical_position
+    └── individual_haplotype_ancestry_identifier
+```
 
 Below is an example command to compile:
 ```
