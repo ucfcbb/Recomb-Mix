@@ -8,7 +8,7 @@ make
 ```
 
 ## Download PLINK 2
-[PLINK 2](https://www.cog-genomics.org/plink/2.0/) is used to filter the markers and samples from the original genomic data. The latest version can be found [here](https://www.cog-genomics.org/plink/2.0/) and its GitHub repository is [here](https://github.com/chrchang/plink-ng/tree/master/2.0/).
+PLINK 2 (https://www.cog-genomics.org/plink/2.0/) is used to filter the markers and samples from the original genomic data. The latest version can be found [here](https://www.cog-genomics.org/plink/2.0/) and its GitHub repository is [here](https://github.com/chrchang/plink-ng/tree/master/2.0/).
 ```
 wget https://s3.amazonaws.com/plink2-assets/alpha7/plink2_linux_x86_64_20260504.zip
 unzip plink2_linux_x86_64_20260504.zip
