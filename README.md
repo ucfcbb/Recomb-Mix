@@ -1,4 +1,6 @@
 # Recomb-Mix
+![Recomb-Mix Icon](RecombMix_Icon.png)
+
 Contact Author: Yuan Wei (yuan.wei@ucf.edu)
 
 ## Run the Recomb-Mix Program
@@ -47,6 +49,7 @@ Four input files are required to run the Recomb-Mix program: the reference panel
 The output file contains three sections: *Ancestry*, *Position*, and *Result*. The *Ancestry* section contains the population labels and their IDs, with one population per line, in tab-delimited format. The *Position* section lists physical positions in ascending order, with one position per line. The *Result* section contains the inferred ancestry labels for each individual haplotype in the admixture panel, in tab-delimited format. Each line represents the result of one individual haplotype, starting with *Admixture individual haplotype id*, followed by a list of inferred segments, having three fields: *Physical start position*, *Physical end position*, *Inferred ancestry label id*. The *Inferred ancestry label id* is a zero-based index of population labels, and the corresponding population labels can be found in the *Ancestry* section.
 
 ## Example
+### Minimal Example
 Below is a tutorial on how to run Recomb-Mix using the example provided in the test folder in this repository. This example infers local ancestry labels of each site for three admixed individuals (data is in *./test/admixture_panel.vcf* file), using 30 reference individuals (data of 10 Africans, 10 Europeans, and 10 Asians is in *./test/reference_panel.vcf* file, and their population labels data is in *./test/reference_panel_population_labels.txt* file). The recombination rates used for the inference are loaded from a recombination map (data is in *./maps/example/recombination_map_GRCh37_chr18.txt* file).
 1. Clone the repository in a local directory and compile
 ```
@@ -59,3 +62,6 @@ make
 ./RecombMix -p ./test/reference_panel.vcf -q ./test/admixture_panel.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/example/recombination_map_GRCh37_chr18.txt
 ```
 The inferred ancestry labels of each admixed individual haplotype per site are output to a file in the current directory (result data is in *./inferred_local_ancestral_values.txt*). The output file format can be found in [Input and Output Files](https://github.com/ucfcbb/Recomb-Mix/tree/main?tab=readme-ov-file#input-and-output-files) section.
+
+### Recomb-Mix Cloud
+Recomb-Mix is lightweight and easy to integrate into pipelines for population genetic analysis and perform local ancestry inference in cloud environments. [Here](./Pipeline.md) is an example of steps to run Recomb-Mix in a cloud-friendly pipeline.
