@@ -2,7 +2,7 @@
 
 ## Download Recomb-Mix, compact reference panels, and genetic maps
 ```
-git clone https://github.com/yuan-webb-wei/Recomb-Mix.git
+git clone https://github.com/ucfcbb/Recomb-Mix.git
 cd Recomb-Mix
 make
 ```
