@@ -1,6 +1,10 @@
 # Recomb-Mix
 ![Recomb-Mix Icon](RecombMix_Icon.png)
 
+Recomb-Mix is a local ancestry inference (LAI) tool. It aims to be both accurate and efficient for inferring local ancestry in admixed individuals using compact reference panels.
+
+Recomb-Mix is designed for LAI using Whole Genome Sequencing (WGS) data. If you are working with Single Nucleotide Polymorphism (SNP) array-like data, please use the allele frequency threshold parameter. See the [note](https://github.com/ucfcbb/Recomb-Mix/tree/main?tab=readme-ov-file#snp-note) below for more information.
+
 Contact Author: Yuan Wei (yuan.wei@ucf.edu)
 
 ## Run the Recomb-Mix Program
@@ -30,6 +34,10 @@ The command to get the help of the program:
 ```
 ./RecombMix -h
 ```
+
+<a id="snp-note"></a>
+>[!Note]
+>For Single Nucleotide Polymorphism (SNP) array-like data, enable the allele frequency threshold parameter to ensure optimal performance. This [paper](https://doi.org/10.1093/bioadv/vbag006) includes a concrete example demonstrating how to run Recomb-Mix on SNP-array-like data with this parameter.
 
 ## Compact Reference Panels
 The Recomb-Mix program utilizes compact reference panels for local ancestry inference. A compact reference panel is space-efficient, as it includes only sample templates containing population-level information. The available compact reference panels (located in *./compact_panels/*) were generated in both GRCh37 and GRCh38 builds. The original panels were comprised of the 1000 Genomes Project (1000GP) and the Human Genome Diversity Project (HGDP) (https://www.internationalgenome.org/), and were phased and imputed using [Beagle](https://faculty.washington.edu/browning/beagle/beagle.html). Below are the names and reference populations in the available compact reference panels.
@@ -65,3 +73,24 @@ The inferred ancestry labels of each admixed individual haplotype per site are o
 
 ### Recomb-Mix Cloud
 Recomb-Mix is lightweight and easy to integrate into pipelines for population genetic analysis and perform local ancestry inference in cloud environments. [Here](./Pipeline.md) is an example of steps to run Recomb-Mix in a cloud-friendly pipeline.
+
+## Reference
+If you use Recomb-Mix in your research, please cite the following article:
+> Yuan Wei, Degui Zhi, Shaojie Zhang, Recomb-Mix: fast and accurate local ancestry inference, Bioinformatics, Volume 41, Issue Supplement_1, July 2025, Pages i180–i188, https://doi.org/10.1093/bioinformatics/btaf227.
+```
+@article{10.1093/bioinformatics/btaf227,
+    author = {Wei, Yuan and Zhi, Degui and Zhang, Shaojie},
+    title = {Recomb-Mix: fast and accurate local ancestry inference},
+    journal = {Bioinformatics},
+    volume = {41},
+    number = {Supplement_1},
+    pages = {i180-i188},
+    year = {2025},
+    month = {07},
+    abstract = {The availability of large genotyped cohorts brings new opportunities for revealing the high-resolution genetic structure of admixed populations via local ancestry inference (LAI), the process of identifying the ancestry of each segment of an individual haplotype. Though current methods achieve high accuracy in standard cases, LAI is still challenging when reference populations are more similar (e.g. intra-continental), when the number of reference populations is too numerous, or when the admixture events are deep in time, all of which are increasingly unavoidable in large biobanks.In this work, we present Recomb-Mix, a new LAI method which integrates elements from the site-based Li and Stephens model and introduces a new graph collapsing techniques to simplify counting paths with the same ancestry label readout. Through comprehensive benchmarking on various simulated datasets, we show that Recomb-Mix is more accurate than existing methods in diverse sets of scenarios while being competitive in terms of resource efficiency. The scalability and robustness of Recomb-Mix are also demonstrated with real-world datasets. We expect that Recomb-Mix will be a useful method for advancing genetics studies of admixed populations.The implementation of Recomb-Mix is available at https://github.com/ucfcbb/Recomb-Mix.},
+    issn = {1367-4811},
+    doi = {10.1093/bioinformatics/btaf227},
+    url = {https://doi.org/10.1093/bioinformatics/btaf227},
+    eprint = {https://academic.oup.com/bioinformatics/article-pdf/41/Supplement_1/i180/63745289/btaf227.pdf},
+}
+```
