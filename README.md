@@ -37,7 +37,11 @@ The command to get the help of the program:
 
 <a id="snp-note"></a>
 >[!Note]
->For Single Nucleotide Polymorphism (SNP) array-like data, enable the allele frequency threshold parameter to ensure optimal performance. This [paper](https://doi.org/10.1093/bioadv/vbag006) includes a concrete example demonstrating how to run Recomb-Mix on SNP-array-like data with this parameter.
+>For Single Nucleotide Polymorphism (SNP) array-like data, enable the allele frequency threshold parameter to ensure optimal performance. Below is an example command of running the Recomb-Mix program on SNP-array-like data:
+>```
+>./RecombMix -p ./test/reference_panel.vcf -q ./test/admixture_panel_array.vcf -a ./test/reference_panel_population_labels.txt -g ./maps/example/recombination_map_GRCh37_chr18.txt -o ./ -f 0.01
+>```
+>This [paper](https://doi.org/10.1093/bioadv/vbag006) includes a concrete example demonstrating how to run Recomb-Mix on SNP-array-like data with this parameter.
 
 ## Compact Reference Panels
 The Recomb-Mix program utilizes compact reference panels for local ancestry inference. A compact reference panel is space-efficient, as it includes only sample templates containing population-level information. The available compact reference panels (located in *./compact_panels/*) were generated in both GRCh37 and GRCh38 builds. The original panels were comprised of the 1000 Genomes Project (1000GP) and the Human Genome Diversity Project (HGDP) (https://www.internationalgenome.org/), and were phased and imputed using [Beagle](https://faculty.washington.edu/browning/beagle/beagle.html). Below are the names and reference populations in the available compact reference panels.
