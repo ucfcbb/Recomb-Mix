@@ -1,0 +1,125 @@
+//SLiM 5.2
+initialize(){
+	if (exists("slimgui")){
+		defineConstant("seed", 21); //random seed value
+		defineConstant("mu", 1.72443e-08); //mutation rate
+		defineConstant("re", 1.29e-8); //recombination rate
+		defineConstant("sp", 0); //physical start position
+		defineConstant("ep", 46709983); //physical end position
+		defineConstant("on1", 765); //input population 1 individual number
+		defineConstant("op1", "./tgp_hgdp_AFR.vcf"); //input population 1 file path
+		defineConstant("on2", 408); //input population 2 individual number
+		defineConstant("op2", "./tgp_hgdp_AMR.vcf"); //input population 2 file path
+		defineConstant("on3", 29); //input population 3 individual number
+		defineConstant("op3", "./tgp_hgdp_CAS.vcf"); //input population 3 file path
+		defineConstant("on4", 727); //input population 4 individual number
+		defineConstant("op4", "./tgp_hgdp_EAS.vcf"); //input population 4 file path
+		defineConstant("on5", 658); //input population 5 individual number
+		defineConstant("op5", "./tgp_hgdp_EUR.vcf"); //input population 5 file path
+		defineConstant("on6", 28); //input population 6 individual number
+		defineConstant("op6", "./tgp_hgdp_OCE.vcf"); //input population 6 file path
+		defineConstant("on7", 657); //input population 7 individual number
+		defineConstant("op7", "./tgp_hgdp_SAS.vcf"); //input population 7 file path
+		defineConstant("on8", 161); //input population 8 individual number
+		defineConstant("op8", "./tgp_hgdp_WAS.vcf"); //input population 8 file path
+		defineConstant("gen", 15); //number of generations after admixture event
+		defineConstant("an", 200); //number of admixed individuals
+		defineConstant("rn", 400); //number of reference individuals
+		defineConstant("ts", "./slim_tgp_hgdp_admix_8way_tree_sequence_a200_r400.ts"); //output tree sequence file path
+		defineConstant("vcf", "./slim_tgp_hgdp_admix_8way_individuals_a200_r400.vcf"); //output individual file path
+	}
+	setSeed(seed);
+	initializeTreeSeq();
+	initializeChromosome(21, type="A", symbol="chr21");
+	initializeMutationRate(mu);
+	initializeMutationType("m1", 0.5, "f", 0.0);
+	initializeGenomicElementType("g1", m1, 1.0);
+	initializeGenomicElement(g1, sp, ep);
+	initializeRecombinationRate(re);
+}
+1 late(){
+	cat("start simulation\n");
+	defineConstant("seed1", getSeed());
+	sim.addSubpop("p1", on1);
+	p1.individuals.readIndividualsFromVCF(op1, m1);
+	sim.addSubpop("p2", on2);
+	p2.individuals.readIndividualsFromVCF(op2, m1);
+	sim.addSubpop("p3", on3);
+	p3.individuals.readIndividualsFromVCF(op3, m1);
+	sim.addSubpop("p4", on4);
+	p4.individuals.readIndividualsFromVCF(op4, m1);
+	sim.addSubpop("p5", on5);
+	p5.individuals.readIndividualsFromVCF(op5, m1);
+	sim.addSubpop("p6", on6);
+	p6.individuals.readIndividualsFromVCF(op6, m1);
+	sim.addSubpop("p7", on7);
+	p7.individuals.readIndividualsFromVCF(op7, m1);
+	sim.addSubpop("p8", on8);
+	p8.individuals.readIndividualsFromVCF(op8, m1);
+	sim.treeSeqRememberIndividuals(sim.subpopulations.individuals);
+	community.rescheduleScriptBlock(s1, start=gen+3, end=gen+3);
+	community.rescheduleScriptBlock(s2, start=gen+4, end=gen+4);
+}
+2 late(){
+	cat("generation=" + sim.cycle + "\n");
+	cat("p1(AFR_input)_size=" + p1.individualCount + "\n");
+	cat("p2(AMR_input)_size=" + p2.individualCount + "\n");
+	cat("p3(CAS_input)_size=" + p3.individualCount + "\n");
+	cat("p4(EAS_input)_size=" + p4.individualCount + "\n");
+	cat("p5(EUR_input)_size=" + p5.individualCount + "\n");
+	cat("p6(OCE_input)_size=" + p6.individualCount + "\n");
+	cat("p7(SAS_input)_size=" + p7.individualCount + "\n");
+	cat("p8(WAS_input)_size=" + p8.individualCount + "\n");
+	defineConstant("fn", 400);
+	defineConstant("apctg1", 0.125);
+	defineConstant("apctg2", 1.0-(7*apctg1));
+	sim.addSubpop("p9", fn);
+	p9.setMigrationRates(c(p1, p2, p3, p4, p5, p6, p7, p8), c(apctg1, apctg1, apctg1, apctg1, apctg1, apctg1, apctg1, apctg2));
+}
+3 late(){
+	cat("generation=" + sim.cycle + "\n");
+	cat("p9(ADMIX)_size=" + p9.individualCount + "\n");
+	p9.setMigrationRates(c(p1, p2, p3, p4, p5, p6, p7, p8), c(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+}
+s1 100 late(){
+	rnsize1 = asInteger(rn * 0.125);
+	if (rnsize1 < 1)
+	{
+		rnsize1 = 1;
+	}
+	rnsize2 = rn - (rnsize1 * 7);
+	if (rnsize2 < 1)
+	{
+		rnsize2 = 1;
+	}
+	ansize = an;
+	if (ansize < 1)
+	{
+		ansize = 1;
+	}
+	p1.setSubpopulationSize(rnsize1);
+	p2.setSubpopulationSize(rnsize1);
+	p3.setSubpopulationSize(rnsize1);
+	p4.setSubpopulationSize(rnsize1);
+	p5.setSubpopulationSize(rnsize1);
+	p6.setSubpopulationSize(rnsize1);
+	p7.setSubpopulationSize(rnsize1);
+	p8.setSubpopulationSize(rnsize2);
+	p9.setSubpopulationSize(ansize);
+}
+s2 101 late(){
+	cat("generation=" + sim.cycle + "\n");
+	cat("p1(AFR)_size=" + p1.individualCount + "\n");
+	cat("p2(AMR)_size=" + p2.individualCount + "\n");
+	cat("p3(CAS)_size=" + p3.individualCount + "\n");
+	cat("p4(EAS)_size=" + p4.individualCount + "\n");
+	cat("p5(EUR)_size=" + p5.individualCount + "\n");
+	cat("p6(OCE)_size=" + p6.individualCount + "\n");
+	cat("p7(SAS)_size=" + p7.individualCount + "\n");
+	cat("p8(WAS)_size=" + p8.individualCount + "\n");
+	cat("p9(ADMIX)_size=" + p9.individualCount + "\n");
+	sim.treeSeqOutput(ts);
+	c(sim.subpopulations[0].individuals, sim.subpopulations[1].individuals, sim.subpopulations[2].individuals, sim.subpopulations[3].individuals, sim.subpopulations[4].individuals, sim.subpopulations[5].individuals, sim.subpopulations[6].individuals, sim.subpopulations[7].individuals, sim.subpopulations[8].individuals).outputIndividualsToVCF(filePath=vcf, append=F, outputMultiallelics=F);
+	sim.simulationFinished();
+	cat("end simulation\n");
+}

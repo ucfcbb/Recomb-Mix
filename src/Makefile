@@ -1,0 +1,36 @@
+# NOTE: This Makefile is configured for the All of Us Researcher Workbench 2.0 environment
+# Compiler
+CXX = g++
+
+# Compiler flags
+CXXFLAGS = -std=c++17 -Os -fopenmp -I/opt/conda/include
+
+# Linker flags
+LDFLAGS = -L/opt/conda/lib -Wl,-rpath,/opt/conda/lib
+LIBS = /opt/conda/lib/libboost_iostreams.so.1.85.0 -fopenmp
+
+# Target executable
+TARGET = RecombMix_v0.8
+
+# Source file
+SRCS = ./RecombMixV0.8.cpp
+
+# Object file
+OBJS = $(SRCS:.cpp=.o)
+
+# Link
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $(TARGET) $(OBJS) $(LIBS)
+	rm -f $(OBJS)
+
+# Compile
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# Run program
+run: $(TARGET)
+	./$(TARGET)
+
+# Clean build
+clean:
+	rm -f $(OBJS) $(TARGET)
