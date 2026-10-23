@@ -10,10 +10,10 @@ LDFLAGS = -L/opt/conda/lib -Wl,-rpath,/opt/conda/lib
 LIBS = /opt/conda/lib/libboost_iostreams.so.1.85.0 -fopenmp
 
 # Target executable
-TARGET = RecombMix_v0.8
+TARGET = RecombMix
 
 # Source file
-SRCS = ./RecombMixV0.8.cpp
+SRCS = ./RecombMix.cpp
 
 # Object file
 OBJS = $(SRCS:.cpp=.o)
