@@ -3,16 +3,16 @@
 ## Download Recomb-Mix, compact reference panels, and genetic maps
 ```
 git clone https://github.com/ucfcbb/Recomb-Mix.git
-cd Recomb-Mix/src
+cd Recomb-Mix
 ```
 
 ## Compile Recomb-Mix
 ```
-make
+make -f Makefile
 ```
 Or
 ```
-g++ -std=c++17 -I/opt/conda/include ./RecombMix.cpp -o RecombMix -L/opt/conda/lib -Wl,-rpath,/opt/conda/lib -lboost_iostreams -Os -fopenmp
+g++ -std=c++17 -I/opt/conda/include ./src/RecombMix.cpp -o RecombMix -L/opt/conda/lib -Wl,-rpath,/opt/conda/lib -lboost_iostreams -Os -fopenmp
 ```
 
 ## Download PLINK 2
