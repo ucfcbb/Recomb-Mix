@@ -52,7 +52,9 @@ g++ -std=c++17 ./utility/convert_ancestry_call.cpp -l boost_iostreams -o ACConve
 
 ## Result
 **Ancestry call run-length encoding format example**
+
 ![Run Length Encoding](ancestry_call_run_length_encoding_example.png)
 
 **Ancestry call ancestry dosage format example**
+
 ![Ancestry Dosage](ancestry_call_ancestry_dosage_example.png)
