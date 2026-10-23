@@ -47,5 +47,5 @@ PGEN is a new file format introduced by PLINK 2. By default, it outputs *.pgen (
 ## Convert ancestry calls to ancestry dosage format
 ```
 g++ -std=c++17 ./utility/convert_ancestry_call.cpp -l boost_iostreams -o ACConverter -Os
-./ACConverter -i ../test/curated_admixture_panel_chr18_inferred_local_ancestral_values.txt -o ../test/curated_admixture_panel_chr18_inferred_local_ancestral_values_as_ancestry_dosage.txt -f 1
+./ACConverter -i ./test/curated_admixture_panel_chr18_inferred_local_ancestral_values.txt -o ./test/curated_admixture_panel_chr18_inferred_local_ancestral_values_as_ancestry_dosage.txt -f 1
 ```
