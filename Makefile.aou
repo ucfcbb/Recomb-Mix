@@ -13,7 +13,7 @@ LIBS = /opt/conda/lib/libboost_iostreams.so.1.85.0 -fopenmp
 TARGET = RecombMix
 
 # Source file
-SRCS = ./RecombMix.cpp
+SRCS = ./src/RecombMix.cpp
 
 # Object file
 OBJS = $(SRCS:.cpp=.o)
