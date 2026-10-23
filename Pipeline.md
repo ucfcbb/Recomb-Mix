@@ -28,20 +28,20 @@ zcat ./compact_panels/eightway_inter/grch37/compact_reference_panel_chr18.vcf.gz
 ```
 
 ## Filter markers and samples using PLINK 2
-Assume the query file is `../test/admixture_panel.vcf` and in the GRCh37 build and the sample id file is `../test/admixture_panel_names.txt` (one sample id per line).
+Assume the query file is `./test/admixture_panel.vcf` and in the GRCh37 build and the sample id file is `./test/admixture_panel_names.txt` (one sample id per line).
 ```
-./plink2 --vcf ../test/admixture_panel.vcf --max-alleles 2 --keep ../test/admixture_panel_names.txt --extract range ./compact_panels/eightway_inter/grch37/compact_reference_panel_chr18_ranges.txt.gz --make-pgen --out ../test/curated_admixture_panel_chr18
+./plink2 --vcf ./test/admixture_panel.vcf --max-alleles 2 --keep ./test/admixture_panel_names.txt --extract range ./compact_panels/eightway_inter/grch37/compact_reference_panel_chr18_ranges.txt.gz --make-pgen --out ./test/curated_admixture_panel_chr18
 ```
 
 ## Convert file format from PGEN to VCF
 PGEN is a new file format introduced by PLINK 2. By default, it outputs *.pgen (binary genotype data), *.pvar (variant information), *.psam (sample information), and *.log files. PLINK 2 supports converting data in PGEN format to VCF format. This step can be combined with the previous one to output the VCF file directly.
 ```
-./plink2 --pfile ../test/curated_admixture_panel_chr18 --export vcf bgz --out ../test/curated_admixture_panel_chr18
+./plink2 --pfile ./test/curated_admixture_panel_chr18 --export vcf bgz --out ./test/curated_admixture_panel_chr18
 ```
 
 ## Perform local ancestry inference
 ```
-./RecombMix -q ../test/curated_admixture_panel_chr18.vcf.gz -p ./compact_panels/eightway_inter/grch37/compact_reference_panel_chr18.vcf.gz -a ./compact_panels/eightway_inter/compact_reference_panel_ancestry_labels.txt -g ./maps/grch37/genetic_map_GRCh37_chr18.txt -o ../test/ -i curated_admixture_panel_chr18_inferred_local_ancestral_values.txt
+./RecombMix -q ./test/curated_admixture_panel_chr18.vcf.gz -p ./compact_panels/eightway_inter/grch37/compact_reference_panel_chr18.vcf.gz -a ./compact_panels/eightway_inter/compact_reference_panel_ancestry_labels.txt -g ./maps/grch37/genetic_map_GRCh37_chr18.txt -o ./test/ -i curated_admixture_panel_chr18_inferred_local_ancestral_values.txt
 ```
 
 ## Convert ancestry calls to ancestry dosage format
