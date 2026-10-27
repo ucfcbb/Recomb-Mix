@@ -11,7 +11,7 @@ wget https://ngs.sanger.ac.uk/production/hgdp/hgdp_wgs.20190516/hgdp_wgs.2019051
 wget https://ngs.sanger.ac.uk/production/hgdp/hgdp_wgs.20190516/metadata/hgdp_wgs.20190516.metadata.txt
 ```
 
-Remove multiallelics and indels for both VCF files using BCFTools (https://samtools.github.io/bcftools/):
+Remove multiallelics and indels from both VCF files using BCFTools (https://samtools.github.io/bcftools/):
 ```
 bcftools view -m2 -M2 -v snps ./CCDG_13607_B01_GRM_WGS_2019-02-19_chr21.recalibrated_variants.vcf.gz -Oz -o ./tgp_chr21_no_multiallelics_no_indels.vcf.gz
 bcftools index -t ./tgp_chr21_no_multiallelics_no_indels.vcf.gz
@@ -55,7 +55,7 @@ slim -d seed=21 -d mu=1.72443e-08 -d re=1.29e-8 -d sp=0 -d ep=46709983 -d on1=76
 Split the simulated VCF file by reference and admix panels:
 ```
 bcftools query -l ./slim_admix_8way_a200_r400.vcf > ./slim_admix_8way_a200_r400_names.txt
-python generate_two_columns.py ./slim_admix_8way_a200_r400_names.txt ./slim_admix_8way_a200_r400_names_mapped.txt AFR AMR CAS EAS EUR OCE SAS WAS ADMIX
+python ./generate_two_columns.py ./slim_admix_8way_a200_r400_names.txt ./slim_admix_8way_a200_r400_names_mapped.txt AFR AMR CAS EAS EUR OCE SAS WAS ADMIX
 bcftools reheader -s ./slim_admix_8way_a200_r400_names_mapped.txt -o ./slim_admix_8way_a200_r400_renamed.vcf ./slim_admix_8way_a200_r400.vcf
 bcftools query -l ./slim_admix_8way_a200_r400_renamed.vcf > ./slim_admix_8way_a200_r400_names_renamed.txt
 awk '/^ADMIX/ {print > "./slim_admix_8way_a200_r400_names_admix.txt"; next} {print > "./slim_admix_8way_a200_r400_names_reference.txt"}' ./slim_admix_8way_a200_r400_names_renamed.txt
@@ -67,10 +67,44 @@ bcftools view -S ./slim_admix_8way_a200_r400_names_admix.txt -Ov -o ./slim_admix
 
 Create population label file of reference panel:
 ```
-awk -F'_' 'BEGIN {print "#Sample_ID\tAncestry_Label"} {print $0 "\t" $1}' ./slim_admix_8way_a200_r400_names_reference.txt > ./slim_admix_8way_a200_r400_population_labels.txt
+awk -F'_' 'BEGIN {print "#Sample_ID\tAncestry_Label"} {print $0 "\t" $1}' ./slim_admix_8way_a200_r400_names_reference.txt > ./slim_admix_8way_a200_r400_population_label.txt
+```
+
+Create genetic map file:
+```
+bcftools query -f '%POS\n' ./slim_admix_8way_a200_r400_renamed_admix.vcf > ./slim_admix_8way_a200_r400_renamed_admix_positions.txt
+python ./create_genetic_map.py --map-in ../../maps/grch38/genetic_map_GRCh38_chr21.txt --positions-in ./slim_admix_8way_a200_r400_renamed_admix_positions.txt --map-out ./slim_admix_8way_a200_r400_genetic_map.txt --chrom-format long
 ```
 
 Extract ancestry ground truth using tskit (https://tskit.dev/software/tskit.html):
 ```
 python ./get_al_from_ts.py 8 ./slim_admix_8way_a200_r400.ts ./slim_admix_8way_a200_r400_ground_truth.txt 8 0 AFR AMR CAS EAS EUR OCE SAS WAS
+```
+
+## Evaluation
+Convert genetic map and population label file format to local ancestry inference method's input format:
+```
+python ./convert_genetic_map_and_population_label_format.py --method flare --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --labels-in ./slim_admix_8way_a200_r400_population_label.txt --map-out ./slim_admix_8way_a200_r400_genetic_map_flare.txt --labels-out ./slim_admix_8way_a200_r400_population_label_flare.txt
+python ./convert_genetic_map_and_population_label_format.py --method gnomix --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --labels-in ./slim_admix_8way_a200_r400_population_label.txt --map-out ./slim_admix_8way_a200_r400_genetic_map_gnomix.txt --labels-out ./slim_admix_8way_a200_r400_population_label_gnomix.txt
+python ./convert_genetic_map_and_population_label_format.py --method recombmix --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --labels-in ./slim_admix_8way_a200_r400_population_label.txt --map-out ./slim_admix_8way_a200_r400_genetic_map_recombmix.txt --labels-out ./slim_admix_8way_a200_r400_population_label_recombmix.txt
+python ./convert_genetic_map_and_population_label_format.py --method rfmix --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --labels-in ./slim_admix_8way_a200_r400_population_label.txt --map-out ./slim_admix_8way_a200_r400_genetic_map_rfmix.txt --labels-out ./slim_admix_8way_a200_r400_population_label_rfmix.txt
+python ./convert_genetic_map_and_population_label_format.py --method sparsepainter --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --labels-in ./slim_admix_8way_a200_r400_population_label.txt --map-out ./slim_admix_8way_a200_r400_genetic_map_sparsepainter.txt --labels-out ./slim_admix_8way_a200_r400_population_label_sparsepainter.txt
+```
+
+Run local ancestry inference method:
+```
+java -Xmx200g -jar flare.jar nthreads=20 min-mac=0 min-maf=0 ref=./slim_admix_8way_a200_r400_renamed_reference.vcf gt=./slim_admix_8way_a200_r400_renamed_admix.vcf map=./slim_admix_8way_a200_r400_genetic_map_flare.txt ref-panel=./slim_admix_8way_a200_r400_population_label_flare.txt out=./flare_result
+python gnomix.py ./slim_admix_8way_a200_r400_renamed_admix.vcf ./ 21 False ./slim_admix_8way_a200_r400_genetic_map_gnomix.txt ./slim_admix_8way_a200_r400_renamed_reference.vcf ./slim_admix_8way_a200_r400_population_label_gnomix.txt
+RecombMix -t 20 -p ./slim_admix_8way_a200_r400_renamed_reference.vcf -q ./slim_admix_8way_a200_r400_renamed_admix.vcf -a ./slim_admix_8way_a200_r400_population_label_recombmix.txt -g ./slim_admix_8way_a200_r400_genetic_map_recombmix.txt -o ./
+rfmix -f ./slim_admix_8way_a200_r400_renamed_admix.vcf -r ./slim_admix_8way_a200_r400_renamed_reference.vcf -m ./slim_admix_8way_a200_r400_population_label_rfmix.txt -g ./slim_admix_8way_a200_r400_genetic_map_rfmix.txt -o ./rfmix_result --chromosome=chr21 --n-threads=20
+SparsePainter -reffile ./slim_admix_8way_a200_r400_renamed_reference.vcf -targetfile ./slim_admix_8way_a200_r400_renamed_admix.vcf -mapfile ./slim_admix_8way_a200_r400_genetic_map_sparsepainter.txt -popfile ./slim_admix_8way_a200_r400_population_label_sparsepainter.txt -namefile ./slim_admix_8way_a200_r400_names_admix.txt -out ./ -prob -ncores 20
+```
+
+Calculate accuracy:
+```
+python ./calculate_accuracy.py --method flare --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --truth-in ./slim_admix_8way_a200_r400_ground_truth.txt  --truth-end exclusive --pred-in ./flare_result.anc.vcf.gz --out ./inferred_local_ancestral_values_accuracy_flare.txt
+python ./calculate_accuracy.py --method gnomix --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --truth-in ./slim_admix_8way_a200_r400_ground_truth.txt  --truth-end exclusive --pred-in ./query_results.msp --out ./inferred_local_ancestral_values_accuracy_gnomix.txt
+python ./calculate_accuracy.py --method recombmix --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --truth-in ./slim_admix_8way_a200_r400_ground_truth.txt  --truth-end exclusive --pred-in ./inferred_local_ancestral_values.txt --out ./inferred_local_ancestral_values_accuracy_recombmix.txt
+python ./calculate_accuracy.py --method rfmix --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --truth-in ./slim_admix_8way_a200_r400_ground_truth.txt  --truth-end exclusive --pred-in ./rfmix_result.msp.tsv --out ./inferred_local_ancestral_values_accuracy_rfmix.txt
+python ./calculate_accuracy.py --method sparsepainter --map-in ./slim_admix_8way_a200_r400_genetic_map.txt --truth-in ./slim_admix_8way_a200_r400_ground_truth.txt  --truth-end exclusive --pred-in ./_prob.txt.gz --out ./inferred_local_ancestral_values_accuracy_sparsepainter.txt
 ```
