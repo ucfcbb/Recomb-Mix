@@ -50,7 +50,7 @@ Ancestry Dosage
 Ancestry State
 └── Result
     ├── physical_position
-    └── individual_haplotype_ancestry_identifier
+    └── individual_haplotype_ancestry_indicator
 ```
 
 Below is an example command to compile:
